@@ -25,3 +25,4 @@ run_claude_sync.sh
 matchering.egg-info/*
 docs/*
 progress-docs/*
+@progressplan.md
