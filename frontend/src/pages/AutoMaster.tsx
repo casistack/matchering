@@ -57,8 +57,16 @@ const AutoMaster = (): JSX.Element => {
     console.log('Files selected for processing:', files);
     if (files.length > 0) {
       const file = files[0];
+      
+      // Clean up previous blob URL if it exists
+      if (currentTrack?.url.startsWith('blob:')) {
+        console.log('AutoMaster: Cleaning up previous blob URL');
+        URL.revokeObjectURL(currentTrack.url);
+      }
+      
       // Create object URL for immediate playback
       const audioUrl = URL.createObjectURL(file);
+      console.log('AutoMaster: Created new blob URL:', audioUrl);
       
       // Upload file and create track
       audioUpload.upload(file).then((response) => {
@@ -72,10 +80,10 @@ const AutoMaster = (): JSX.Element => {
         setUploadedFileId(response.fileId);
         
         // Track will be loaded by WaveformVisualization component
-        console.log('Track created for WaveformVisualization:', track);
+        console.log('AutoMaster: Track created for WaveformVisualization:', track);
       }).catch(console.error);
     }
-  }, [audioUpload]);
+  }, [audioUpload, currentTrack]);
 
   const handleStartProcessing = useCallback(async (): Promise<void> => {
     if (!uploadedFileId) {

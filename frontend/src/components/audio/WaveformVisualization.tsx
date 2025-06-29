@@ -71,7 +71,20 @@ const WaveformVisualization = ({
   useEffect(() => {
     if (!waveformRef.current || disabled) return;
 
+    // Cleanup any existing instance first
+    if (wavesurferRef.current) {
+      console.log('WaveformVisualization: Destroying existing WaveSurfer instance');
+      try {
+        wavesurferRef.current.destroy();
+      } catch (error) {
+        console.warn('WaveformVisualization: Error destroying previous instance:', error);
+      }
+      wavesurferRef.current = null;
+    }
+
     try {
+      console.log('WaveformVisualization: Creating new WaveSurfer instance with URL:', audioUrl);
+      
       // WaveSurfer.js v7 API - proper configuration
       const wavesurfer = WaveSurfer.create({
         container: waveformRef.current,
@@ -81,8 +94,7 @@ const WaveformVisualization = ({
         // V7 uses HTML audio by default - no backend option needed
         barWidth: 2,
         barRadius: 1,
-        // Load URL directly in v7 if available
-        url: audioUrl || undefined,
+        // Don't load URL in constructor to avoid multiple loads
       });
 
       wavesurferRef.current = wavesurfer;
@@ -156,7 +168,12 @@ const WaveformVisualization = ({
       });
 
       return () => {
-        wavesurfer.destroy();
+        console.log('WaveformVisualization: Cleanup - destroying WaveSurfer instance');
+        try {
+          wavesurfer.destroy();
+        } catch (error) {
+          console.warn('WaveformVisualization: Error during cleanup:', error);
+        }
       };
     } catch (error) {
       setState(prev => ({
@@ -169,40 +186,29 @@ const WaveformVisualization = ({
 
   // Load audio data
   useEffect(() => {
-    if (!wavesurferRef.current || disabled) return;
+    if (!wavesurferRef.current || disabled || !audioUrl) return;
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-    // In WaveSurfer.js v7, if URL wasn't set in constructor, load it separately
-    if (!audioUrl && wavesurferRef.current) {
-      console.log('WaveformVisualization: No URL provided in constructor');
-      return;
-    }
+    const loadAudio = async () => {
+      try {
+        console.log('WaveformVisualization: Loading audio URL:', audioUrl);
+        
+        // Load URL using v7 API
+        await wavesurferRef.current!.load(audioUrl);
+        
+      } catch (error) {
+        console.error('WaveformVisualization: Audio loading failed:', error);
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Failed to load audio',
+        }));
+      }
+    };
 
-    // If URL was set in constructor, WaveSurfer will handle loading automatically
-    if (audioUrl) {
-      console.log('WaveformVisualization: Audio URL set in constructor:', audioUrl);
-    }
-    
-    // Handle audioBuffer loading if needed
-    if (audioBuffer && wavesurferRef.current) {
-      const loadAudio = async () => {
-        try {
-          console.log('WaveformVisualization: Loading audio buffer');
-          // v7 API for loading array buffer
-          await wavesurferRef.current!.loadArrayBuffer(audioBuffer);
-        } catch (error) {
-          console.error('WaveformVisualization: Audio buffer loading failed:', error);
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            error: error instanceof Error ? error.message : 'Failed to load audio',
-          }));
-        }
-      };
-      loadAudio();
-    }
-  }, [audioUrl, audioBuffer, disabled]);
+    loadAudio();
+  }, [audioUrl, disabled]);
 
   const handlePlayPause = useCallback((): void => {
     if (!wavesurferRef.current || disabled) return;
