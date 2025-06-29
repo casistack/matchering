@@ -1,4 +1,4 @@
-import { Container, Typography, Box, Card, CardContent, Grid2 as Grid } from '@mui/material';
+import { Container, Typography, Box, Card, CardContent, Grid } from '@mui/material';
 
 const Home = (): JSX.Element => {
   return (
@@ -12,7 +12,7 @@ const Home = (): JSX.Element => {
         </Typography>
         
         <Grid container spacing={4} sx={{ mt: 4 }}>
-          <Grid xs={12} md={4}>
+          <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
                 <Typography variant="h6" component="h3" gutterBottom>
@@ -26,7 +26,7 @@ const Home = (): JSX.Element => {
             </Card>
           </Grid>
           
-          <Grid xs={12} md={4}>
+          <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
                 <Typography variant="h6" component="h3" gutterBottom>
@@ -39,7 +39,7 @@ const Home = (): JSX.Element => {
             </Card>
           </Grid>
           
-          <Grid xs={12} md={4}>
+          <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
                 <Typography variant="h6" component="h3" gutterBottom>

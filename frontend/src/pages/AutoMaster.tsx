@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Container, Typography, Box, Grid2 as Grid, Alert } from '@mui/material';
+import { Container, Typography, Box, Grid, Alert } from '@mui/material';
 import AudioUpload from '@/components/audio/AudioUpload';
 import ProcessingControls from '@/components/audio/ProcessingControls';
 import WaveformVisualization from '@/components/audio/WaveformVisualization';
@@ -99,7 +99,7 @@ const AutoMaster = (): JSX.Element => {
 
         <Grid container spacing={4}>
           {/* Upload Section */}
-          <Grid xs={12} md={8}>
+          <Grid item xs={12} md={8}>
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" gutterBottom>
                 1. Upload Your Audio
@@ -163,7 +163,7 @@ const AutoMaster = (): JSX.Element => {
           </Grid>
 
           {/* Info Panel */}
-          <Grid xs={12} md={4}>
+          <Grid item xs={12} md={4}>
             <Box sx={{ position: 'sticky', top: 20 }}>
               <Typography variant="h6" gutterBottom>
                 AI Auto-Mastering Features
