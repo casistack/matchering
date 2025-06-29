@@ -87,12 +87,15 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
     
     try {
+      // For FormData, don't include default Content-Type header
+      const isFormData = options.body instanceof FormData;
+      const headers = isFormData 
+        ? { ...options.headers }
+        : { ...this.defaultHeaders, ...options.headers };
+
       const requestOptions: RequestInit = {
         ...options,
-        headers: {
-          ...this.defaultHeaders,
-          ...options.headers,
-        },
+        headers,
         signal: options.signal || AbortSignal.timeout(API_CONFIG.TIMEOUT),
       };
 
