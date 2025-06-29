@@ -68,3 +68,23 @@ export interface WaveformConfig {
   readonly height: number;
   readonly responsive: boolean;
 }
+
+// Audio track interface for playback
+export interface AudioTrack {
+  readonly id: string;
+  readonly name: string;
+  readonly url: string;
+  readonly metadata: AudioFileMetadata;
+  readonly audioBuffer?: ArrayBuffer;
+}
+
+// Audio playback state
+export interface AudioPlaybackState {
+  readonly currentTrack: AudioTrack | null;
+  readonly isPlaying: boolean;
+  readonly currentTime: number;
+  readonly duration: number;
+  readonly volume: number;
+  readonly isLoading: boolean;
+  readonly error: string | null;
+}
