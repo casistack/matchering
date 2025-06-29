@@ -51,6 +51,9 @@ dependencies = [
     "soundfile>=0.11.0",
     "resampy>=0.4.2",
     "statsmodels>=0.13.2",
+    "librosa",
+    "scikit-learn",
+    "redis",
 ]
 
 [project.optional-dependencies]
@@ -83,13 +86,43 @@ web = [
 ]
 ai = [
     "librosa>=0.10.1",
-    "essentia>=2.1b6",
     "scikit-learn>=1.3.0",
-    # Future deep learning dependencies
-    # "torch>=2.1.0",
-    # "torchaudio>=2.1.0", 
+    "redis>=5.0.0",
+    # Platform-specific PyTorch (uncomment based on your platform)
+    # macOS Intel: use CPU-only torch
+    "torch>=2.1.0; platform_machine != 'arm64'",
+    # Linux/Windows with CUDA (for your RTX 4090 machines)
+    # "torch>=2.1.0+cu121; platform_system == 'Linux'",
+    # "torchaudio>=2.1.0",
+    # Future ML dependencies
     # "transformers>=4.35.0",
     # "onnx>=1.15.0",
+]
+
+# Platform-specific AI dependencies for development
+ai-dev = [
+    "librosa>=0.10.1",
+    "scikit-learn>=1.3.0", 
+    "redis>=5.0.0",
+    # Development on macOS Intel (CPU-only)
+    "torch>=2.1.0; platform_system == 'Darwin'",
+    # Production Linux/Windows with GPU
+    "torch>=2.1.0; platform_system != 'Darwin'",
+    "torchaudio>=2.1.0; platform_system != 'Darwin'",
+]
+
+# GPU-optimized for your RTX 4090 machines
+ai-gpu = [
+    "librosa>=0.10.1",
+    "scikit-learn>=1.3.0",
+    "redis>=5.0.0",
+    # CUDA-enabled PyTorch for RTX 4090
+    "torch>=2.1.0",
+    "torchaudio>=2.1.0", 
+    "transformers>=4.35.0",
+    "accelerate>=0.25.0",
+    # "onnx>=1.15.0",
+    # "onnxruntime-gpu>=1.16.0",
 ]
 
 [project.urls]
