@@ -28,6 +28,7 @@ interface WaveformVisualizationProps {
   readonly progressColor?: string;
   readonly onTimeUpdate?: (currentTime: number) => void;
   readonly onDurationChange?: (duration: number) => void;
+  readonly onAudioElementReady?: (audioElement: HTMLAudioElement) => void;
   readonly disabled?: boolean;
 }
 
@@ -50,6 +51,7 @@ const WaveformVisualization = ({
   progressColor = '#e4e3df',
   onTimeUpdate,
   onDurationChange,
+  onAudioElementReady,
   disabled = false,
 }: WaveformVisualizationProps): JSX.Element => {
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -94,6 +96,12 @@ const WaveformVisualization = ({
           error: null,
         }));
         onDurationChange?.(wavesurfer.getDuration());
+        
+        // Provide access to audio element for analysis
+        const audioElement = wavesurfer.getMediaElement() as HTMLAudioElement;
+        if (audioElement) {
+          onAudioElementReady?.(audioElement);
+        }
       });
 
       wavesurfer.on('play', () => {

@@ -3,6 +3,7 @@ import { Container, Typography, Box, Grid, Alert } from '@mui/material';
 import AudioUpload from '@/components/audio/AudioUpload';
 import ProcessingControls from '@/components/audio/ProcessingControls';
 import WaveformVisualization from '@/components/audio/WaveformVisualization';
+import AudioAnalyzer from '@/components/audio/AudioAnalyzer';
 import useAudioUpload from '@/hooks/useAudioUpload';
 import useAudioPlayback from '@/hooks/useAudioPlayback';
 import type { ProcessingMode, ProcessingSettings, AudioTrack } from '@/types';
@@ -17,6 +18,8 @@ const AutoMaster = (): JSX.Element => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<AudioTrack | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const audioUpload = useAudioUpload({
     maxFileSize: 100 * 1024 * 1024, // 100MB
@@ -84,6 +87,26 @@ const AutoMaster = (): JSX.Element => {
     setIsProcessing(false);
   }, []);
 
+  const handleAudioElementReady = useCallback((element: HTMLAudioElement): void => {
+    setAudioElement(element);
+    
+    // Track play/pause state for analyzer
+    const handlePlay = (): void => setIsPlayingAudio(true);
+    const handlePause = (): void => setIsPlayingAudio(false);
+    const handleEnded = (): void => setIsPlayingAudio(false);
+    
+    element.addEventListener('play', handlePlay);
+    element.addEventListener('pause', handlePause);
+    element.addEventListener('ended', handleEnded);
+    
+    // Cleanup function
+    return () => {
+      element.removeEventListener('play', handlePlay);
+      element.removeEventListener('pause', handlePause);
+      element.removeEventListener('ended', handleEnded);
+    };
+  }, []);
+
   const hasUploadedFiles = audioUpload.uploadedFiles.length > 0;
 
   return (
@@ -138,6 +161,25 @@ const AutoMaster = (): JSX.Element => {
                   disabled={isProcessing}
                   onTimeUpdate={(time) => console.log('Waveform time:', time)}
                   onDurationChange={(duration) => console.log('Duration:', duration)}
+                  onAudioElementReady={handleAudioElementReady}
+                />
+              </Box>
+            )}
+
+            {/* Audio Analysis */}
+            {currentTrack && (
+              <Box sx={{ mb: 4 }}>
+                <AudioAnalyzer
+                  audioElement={audioElement}
+                  isPlaying={isPlayingAudio}
+                  onAnalysisUpdate={(analysis) => {
+                    console.log('Audio analysis:', {
+                      rms: analysis.rms,
+                      peak: analysis.peak,
+                      centroid: analysis.centroid,
+                      rolloff: analysis.rolloff,
+                    });
+                  }}
                 />
               </Box>
             )}
@@ -146,7 +188,7 @@ const AutoMaster = (): JSX.Element => {
             {hasUploadedFiles && (
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  3. Configure AI Processing
+                  4. Configure AI Processing
                 </Typography>
                 <ProcessingControls
                   mode={processingMode}

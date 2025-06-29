@@ -88,3 +88,43 @@ export interface AudioPlaybackState {
   readonly isLoading: boolean;
   readonly error: string | null;
 }
+
+// Real-time audio analysis data
+export interface RealtimeAudioAnalysis {
+  readonly frequencyData: Uint8Array;
+  readonly timeDomainData: Uint8Array;
+  readonly rms: number;
+  readonly peak: number;
+  readonly centroid: number;
+  readonly rolloff: number;
+  readonly averageFrequency: number;
+  readonly dynamicRange: number;
+  readonly timestamp: number;
+}
+
+// Audio analysis configuration
+export interface AudioAnalysisConfig {
+  readonly fftSize: number;
+  readonly smoothingTimeConstant: number;
+  readonly updateInterval: number;
+  readonly enableRealtime: boolean;
+}
+
+// Frequency band definition
+export interface FrequencyBand {
+  readonly name: string;
+  readonly minFreq: number;
+  readonly maxFreq: number;
+  readonly color: string;
+  readonly energy: number;
+}
+
+// Audio visualization configuration
+export interface AudioVisualizationConfig {
+  readonly type: 'spectrum' | 'waveform' | 'spectrogram';
+  readonly colorScheme: 'default' | 'rainbow' | 'monochrome';
+  readonly sensitivity: number;
+  readonly smoothing: number;
+  readonly showFrequencyLabels: boolean;
+  readonly showLoudnessMeters: boolean;
+}
