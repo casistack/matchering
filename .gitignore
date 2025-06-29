@@ -27,3 +27,4 @@ docs/*
 progress-docs/*
 @progressplan.md
 DEVELOPMENT-PROCESS.md
+backend/.env
