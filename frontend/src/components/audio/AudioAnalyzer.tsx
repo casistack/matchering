@@ -66,6 +66,15 @@ const AudioAnalyzer = ({ audioElement, isPlaying, onAnalysisUpdate }: AudioAnaly
     if (!audioElement || isInitialized) return;
 
     try {
+      console.log('AudioAnalyzer: Initializing audio context with element:', audioElement);
+      console.log('AudioAnalyzer: Element type:', audioElement.constructor.name);
+      console.log('AudioAnalyzer: Element tagName:', audioElement.tagName);
+      
+      // Validate that we have a proper HTMLMediaElement
+      if (!(audioElement instanceof HTMLMediaElement)) {
+        throw new Error(`Invalid audio element: expected HTMLMediaElement, got ${audioElement.constructor.name}`);
+      }
+      
       // Create audio context
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       
@@ -74,16 +83,25 @@ const AudioAnalyzer = ({ audioElement, isPlaying, onAnalysisUpdate }: AudioAnaly
       analyzerRef.current.fftSize = 2048;
       analyzerRef.current.smoothingTimeConstant = 0.8;
       
-      // Create source from audio element
-      sourceRef.current = audioContextRef.current.createMediaElementSource(audioElement);
+      // Create source from audio element with additional error handling
+      try {
+        sourceRef.current = audioContextRef.current.createMediaElementSource(audioElement);
+      } catch (sourceError) {
+        console.error('AudioAnalyzer: Failed to create media element source:', sourceError);
+        // Try to create a new audio element from the current source
+        throw new Error('Cannot create audio source - audio element may already be connected to another context');
+      }
       
       // Connect: source -> analyzer -> destination
       sourceRef.current.connect(analyzerRef.current);
       analyzerRef.current.connect(audioContextRef.current.destination);
       
       setIsInitialized(true);
+      console.log('AudioAnalyzer: Audio context initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize audio context:', error);
+      console.error('AudioAnalyzer: Failed to initialize audio context:', error);
+      // Set a more descriptive error state
+      setAnalysis(null);
     }
   }, [audioElement, isInitialized]);
 

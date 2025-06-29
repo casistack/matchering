@@ -281,8 +281,8 @@ const AudioUpload = ({
                 <ListItemText
                   primary={fileData.file.name}
                   secondary={
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
+                    <span>
+                      <Typography variant="caption" color="text.secondary" component="span">
                         {formatFileSize(fileData.file.size)}
                         {fileData.metadata?.duration ? ` • ${fileData.metadata.duration.toFixed(1)}s` : ''}
                         {fileData.metadata?.sampleRate ? ` • ${fileData.metadata.sampleRate}Hz` : ''}
@@ -292,16 +292,16 @@ const AudioUpload = ({
                         <LinearProgress
                           variant="determinate"
                           value={fileData.progress}
-                          sx={{ mt: 1 }}
+                          sx={{ mt: 1, display: 'block' }}
                         />
                       )}
                       
                       {fileData.status === 'error' && fileData.error && (
-                        <Typography variant="caption" color="error">
+                        <Typography variant="caption" color="error" component="span" sx={{ display: 'block' }}>
                           {fileData.error}
                         </Typography>
                       )}
-                    </Box>
+                    </span>
                   }
                 />
                 

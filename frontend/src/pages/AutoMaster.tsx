@@ -6,7 +6,7 @@ import ProcessingProgress from '@/components/audio/ProcessingProgress';
 import WaveformVisualization from '@/components/audio/WaveformVisualization';
 import AudioAnalyzer from '@/components/audio/AudioAnalyzer';
 import useAudioUpload from '@/hooks/useAudioUpload';
-import useAudioPlayback from '@/hooks/useAudioPlayback';
+// Removed useAudioPlayback to avoid conflict with WaveSurfer.js playback
 import useProcessingJob from '@/hooks/useProcessingJob';
 import type { ProcessingMode, ProcessingSettings, AudioTrack } from '@/types';
 
@@ -51,12 +51,7 @@ const AutoMaster = (): JSX.Element => {
     autoConnectWebSocket: true,
   });
 
-  const audioPlayback = useAudioPlayback({
-    volume: 0.5,
-    onTimeUpdate: (currentTime) => {
-      console.log('Playback time:', currentTime);
-    },
-  });
+  // Removed audioPlayback hook - using WaveSurfer.js for playback instead
 
   const handleFilesSelected = useCallback((files: File[]): void => {
     console.log('Files selected for processing:', files);
@@ -76,11 +71,11 @@ const AutoMaster = (): JSX.Element => {
         setCurrentTrack(track);
         setUploadedFileId(response.fileId);
         
-        // Load track for playback
-        audioPlayback.loadTrack(track).catch(console.error);
+        // Track will be loaded by WaveformVisualization component
+        console.log('Track created for WaveformVisualization:', track);
       }).catch(console.error);
     }
-  }, [audioUpload, audioPlayback]);
+  }, [audioUpload]);
 
   const handleStartProcessing = useCallback(async (): Promise<void> => {
     if (!uploadedFileId) {

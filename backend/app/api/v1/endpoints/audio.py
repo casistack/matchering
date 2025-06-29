@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request, Form, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 import logging
@@ -437,6 +438,104 @@ async def get_audio_file(
             detail={
                 "message": "Failed to retrieve audio file",
                 "error_code": "GET_FILE_ERROR",
+                "request_id": request_id
+            }
+        )
+
+
+@router.get("/files/{file_id}/stream")
+async def stream_audio_file(
+    file_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> FileResponse:
+    """
+    Stream audio file content for playback.
+    
+    Args:
+        file_id: Audio file identifier (UUID)
+        request: HTTP request object
+        db: Database session
+        
+    Returns:
+        FileResponse: Audio file content with appropriate headers
+        
+    Raises:
+        HTTPException: If file not found or inaccessible
+    """
+    request_id = generate_request_id()
+    
+    try:
+        # Validate UUID format
+        from app.utils.validation_utils import validate_uuid_string
+        validate_uuid_string(file_id, "file_id")
+        
+        # Query audio file
+        query = select(AudioFile).where(AudioFile.id == uuid.UUID(file_id))
+        result = await db.execute(query)
+        audio_file = result.scalar_one_or_none()
+        
+        if not audio_file:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "message": f"Audio file not found: {file_id}",
+                    "error_code": "FILE_NOT_FOUND",
+                    "request_id": request_id
+                }
+            )
+        
+        # Check if physical file exists
+        file_path = Path(audio_file.file_path)
+        if not file_path.exists():
+            logger.error(f"Physical file missing: {file_path}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "message": f"Audio file content not found: {file_id}",
+                    "error_code": "FILE_CONTENT_NOT_FOUND", 
+                    "request_id": request_id
+                }
+            )
+        
+        # Determine media type based on file format
+        media_type_map = {
+            "wav": "audio/wav",
+            "mp3": "audio/mpeg",
+            "flac": "audio/flac",
+            "aiff": "audio/aiff",
+            "m4a": "audio/mp4",
+            "ogg": "audio/ogg"
+        }
+        
+        media_type = media_type_map.get(audio_file.format.lower(), "audio/wav")
+        
+        logger.info(f"Streaming audio file: {file_id} ({file_path.name})")
+        
+        # Return file response with proper headers for audio streaming
+        return FileResponse(
+            path=str(file_path),
+            media_type=media_type,
+            filename=audio_file.original_filename,
+            headers={
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "no-cache",
+                "X-File-ID": str(audio_file.id),
+                "X-Request-ID": request_id
+            }
+        )
+        
+    except ValidationError as e:
+        logger.warning(f"Stream validation failed: {e.message}")
+        raise HTTPException(status_code=400, detail=e.to_dict())
+    
+    except Exception as e:
+        logger.error(f"Stream file failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Failed to stream audio file",
+                "error_code": "STREAM_ERROR",
                 "request_id": request_id
             }
         )

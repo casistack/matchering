@@ -72,23 +72,24 @@ const WaveformVisualization = ({
     if (!waveformRef.current || disabled) return;
 
     try {
+      // WaveSurfer.js v7 API - proper configuration
       const wavesurfer = WaveSurfer.create({
         container: waveformRef.current,
         height,
         waveColor,
         progressColor,
-        cursorColor: progressColor,
+        // V7 uses HTML audio by default - no backend option needed
         barWidth: 2,
         barRadius: 1,
-        responsive: true,
-        normalize: true,
-        backend: 'WebAudio',
+        // Load URL directly in v7 if available
+        url: audioUrl || undefined,
       });
 
       wavesurferRef.current = wavesurfer;
 
       // Event listeners
       wavesurfer.on('ready', () => {
+        console.log('WaveformVisualization: Audio ready, duration:', wavesurfer.getDuration());
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -97,10 +98,22 @@ const WaveformVisualization = ({
         }));
         onDurationChange?.(wavesurfer.getDuration());
         
-        // Provide access to audio element for analysis
-        const audioElement = wavesurfer.getMediaElement() as HTMLAudioElement;
-        if (audioElement) {
-          onAudioElementReady?.(audioElement);
+        // In WaveSurfer.js v7, access to audio element may be different
+        // Try to get the media element using the v7 API
+        try {
+          const audioElement = wavesurfer.getMediaElement?.() as HTMLAudioElement;
+          console.log('WaveformVisualization: Audio element from WaveSurfer v7:', audioElement);
+          console.log('WaveformVisualization: Audio element type:', audioElement?.constructor.name);
+          
+          if (audioElement && audioElement instanceof HTMLAudioElement) {
+            console.log('WaveformVisualization: Providing audio element to analyzer');
+            onAudioElementReady?.(audioElement);
+          } else {
+            console.warn('WaveformVisualization: getMediaElement not available or invalid in v7');
+            // For v7, we might need a different approach to get audio element
+          }
+        } catch (error) {
+          console.error('WaveformVisualization: Error accessing audio element:', error);
         }
       });
 
@@ -128,6 +141,13 @@ const WaveformVisualization = ({
       });
 
       wavesurfer.on('error', (error: Error) => {
+        console.error('WaveformVisualization: WaveSurfer error:', error);
+        // Handle AbortError specifically
+        if (error.name === 'AbortError') {
+          console.log('WaveformVisualization: Audio loading was aborted, possibly due to component update');
+          return; // Don't set error state for abort errors
+        }
+        
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -153,18 +173,34 @@ const WaveformVisualization = ({
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-    try {
-      if (audioUrl) {
-        wavesurferRef.current.load(audioUrl);
-      } else if (audioBuffer) {
-        wavesurferRef.current.loadArrayBuffer(audioBuffer);
-      }
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to load audio',
-      }));
+    // In WaveSurfer.js v7, if URL wasn't set in constructor, load it separately
+    if (!audioUrl && wavesurferRef.current) {
+      console.log('WaveformVisualization: No URL provided in constructor');
+      return;
+    }
+
+    // If URL was set in constructor, WaveSurfer will handle loading automatically
+    if (audioUrl) {
+      console.log('WaveformVisualization: Audio URL set in constructor:', audioUrl);
+    }
+    
+    // Handle audioBuffer loading if needed
+    if (audioBuffer && wavesurferRef.current) {
+      const loadAudio = async () => {
+        try {
+          console.log('WaveformVisualization: Loading audio buffer');
+          // v7 API for loading array buffer
+          await wavesurferRef.current!.loadArrayBuffer(audioBuffer);
+        } catch (error) {
+          console.error('WaveformVisualization: Audio buffer loading failed:', error);
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Failed to load audio',
+          }));
+        }
+      };
+      loadAudio();
     }
   }, [audioUrl, audioBuffer, disabled]);
 
