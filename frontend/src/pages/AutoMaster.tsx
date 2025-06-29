@@ -3,7 +3,7 @@ import { Container, Typography, Box, Grid, Alert } from '@mui/material';
 import AudioUpload from '@/components/audio/AudioUpload';
 import ProcessingControls from '@/components/audio/ProcessingControls';
 import ProcessingProgress from '@/components/audio/ProcessingProgress';
-import WaveformVisualization from '@/components/audio/WaveformVisualization';
+import WaveformVisualizationV2 from '@/components/audio/WaveformVisualizationV2';
 import AudioAnalyzer from '@/components/audio/AudioAnalyzer';
 import useAudioUpload from '@/hooks/useAudioUpload';
 // Removed useAudioPlayback to avoid conflict with WaveSurfer.js playback
@@ -190,7 +190,7 @@ const AutoMaster = (): JSX.Element => {
                 <Typography variant="h6" gutterBottom>
                   2. Audio Preview
                 </Typography>
-                <WaveformVisualization
+                <WaveformVisualizationV2
                   audioUrl={currentTrack.url}
                   title={currentTrack.name}
                   height={120}

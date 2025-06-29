@@ -22,6 +22,7 @@
     "@mui/icons-material": "^7.1.2",
     "@mui/material": "^7.1.2",
     "@tanstack/react-query": "^5.81.5",
+    "@wavesurfer/react": "^1.0.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8",
