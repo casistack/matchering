@@ -125,16 +125,24 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
       
       const responseData = uploadResponse.data;
       
-      // Add uploaded file to our local state
+      // Map backend response to frontend types
       const metadata: AudioFileMetadata = {
-        filename: file.name,
-        format: responseData.metadata.format,
-        sampleRate: responseData.metadata.sampleRate,
-        bitDepth: responseData.metadata.bitDepth,
-        channels: responseData.metadata.channels,
-        duration: responseData.metadata.duration,
-        fileSize: file.size,
-        checksum: responseData.metadata.checksum,
+        filename: responseData.original_filename,
+        format: responseData.format as AudioFormat,
+        sampleRate: responseData.sample_rate,
+        bitDepth: 16, // Default as backend doesn't provide this yet
+        channels: responseData.channels,
+        duration: responseData.duration,
+        fileSize: responseData.file_size,
+        checksum: responseData.checksum,
+      };
+
+      // Map to FileUploadResponse format expected by frontend
+      const mappedResponse: FileUploadResponse = {
+        fileId: responseData.file_id,
+        uploadUrl: '', // Backend doesn't provide this, use empty string
+        metadata,
+        estimatedProcessingTime: Math.floor(responseData.duration * 0.1) || 30,
       };
       
       // Update state with uploaded file
@@ -149,7 +157,7 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
       options.onUploadComplete?.(metadata);
       options.onUploadProgress?.(100);
       
-      return responseData;
+      return mappedResponse;
     } catch (error) {
       let errorMessage = 'Upload failed';
       

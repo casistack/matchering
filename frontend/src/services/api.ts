@@ -229,7 +229,7 @@ export const audioAPI = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('processing_mode', options.processingMode || 'auto');
-    formData.append('auto_analyze', String(options.autoAnalyze ?? true));
+    formData.append('auto_analyze', options.autoAnalyze !== false ? 'true' : 'false');
     
     return apiClient.postForm<FileUploadResponse>('/audio/upload', formData);
   },
