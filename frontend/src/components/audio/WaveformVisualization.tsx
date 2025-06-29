@@ -56,6 +56,10 @@ const WaveformVisualization = ({
 }: WaveformVisualizationProps): JSX.Element => {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const isInitializedRef = useRef<boolean>(false);
+  const loadingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentUrlRef = useRef<string | null>(null);
   
   const [state, setState] = useState<WaveformState>({
     isPlaying: false,
@@ -67,24 +71,13 @@ const WaveformVisualization = ({
     error: null,
   });
 
-  // Initialize WaveSurfer
+  // Initialize WaveSurfer - only once
   useEffect(() => {
-    if (!waveformRef.current || disabled) return;
+    if (!waveformRef.current || disabled || isInitializedRef.current) return;
 
-    // Cleanup any existing instance first
-    if (wavesurferRef.current) {
-      console.log('WaveformVisualization: Destroying existing WaveSurfer instance');
-      try {
-        wavesurferRef.current.destroy();
-      } catch (error) {
-        console.warn('WaveformVisualization: Error destroying previous instance:', error);
-      }
-      wavesurferRef.current = null;
-    }
-
+    console.log('WaveformVisualization: Initializing WaveSurfer instance (one-time)');
+    
     try {
-      console.log('WaveformVisualization: Creating new WaveSurfer instance with URL:', audioUrl);
-      
       // WaveSurfer.js v7 API - proper configuration
       const wavesurfer = WaveSurfer.create({
         container: waveformRef.current,
@@ -98,6 +91,7 @@ const WaveformVisualization = ({
       });
 
       wavesurferRef.current = wavesurfer;
+      isInitializedRef.current = true;
 
       // Event listeners
       wavesurfer.on('ready', () => {
@@ -155,8 +149,8 @@ const WaveformVisualization = ({
       wavesurfer.on('error', (error: Error) => {
         console.error('WaveformVisualization: WaveSurfer error:', error);
         // Handle AbortError specifically
-        if (error.name === 'AbortError') {
-          console.log('WaveformVisualization: Audio loading was aborted, possibly due to component update');
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          console.log('WaveformVisualization: Audio operation was aborted (expected during cleanup)');
           return; // Don't set error state for abort errors
         }
         
@@ -167,12 +161,21 @@ const WaveformVisualization = ({
         }));
       });
 
+      // Cleanup function - only destroy on unmount
       return () => {
-        console.log('WaveformVisualization: Cleanup - destroying WaveSurfer instance');
-        try {
-          wavesurfer.destroy();
-        } catch (error) {
-          console.warn('WaveformVisualization: Error during cleanup:', error);
+        if (isInitializedRef.current && wavesurferRef.current) {
+          console.log('WaveformVisualization: Final cleanup - destroying WaveSurfer instance');
+          try {
+            // Cancel any pending operations
+            if (abortControllerRef.current) {
+              abortControllerRef.current.abort();
+            }
+            wavesurferRef.current.destroy();
+            wavesurferRef.current = null;
+            isInitializedRef.current = false;
+          } catch (error) {
+            console.warn('WaveformVisualization: Error during cleanup:', error);
+          }
         }
       };
     } catch (error) {
@@ -182,32 +185,80 @@ const WaveformVisualization = ({
         error: error instanceof Error ? error.message : 'Failed to initialize waveform',
       }));
     }
-  }, [height, waveColor, progressColor, onTimeUpdate, onDurationChange, disabled]);
+  }, []); // Empty dependency array - initialize only once
 
-  // Load audio data
+  // Load audio data with proper abort handling
   useEffect(() => {
-    if (!wavesurferRef.current || disabled || !audioUrl) return;
+    if (!wavesurferRef.current || !isInitializedRef.current || disabled || !audioUrl) return;
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    // Skip if already loading or same URL
+    if (loadingRef.current || currentUrlRef.current === audioUrl) {
+      console.log('WaveformVisualization: Skipping load - already loading or same URL');
+      return;
+    }
+
+    // Cancel any previous load operation
+    if (abortControllerRef.current) {
+      console.log('WaveformVisualization: Cancelling previous load operation');
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+    const currentAbortController = abortControllerRef.current;
 
     const loadAudio = async () => {
+      loadingRef.current = true;
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
       try {
         console.log('WaveformVisualization: Loading audio URL:', audioUrl);
         
+        // Check if aborted before loading
+        if (currentAbortController.signal.aborted) {
+          console.log('WaveformVisualization: Load cancelled before start');
+          return;
+        }
+
         // Load URL using v7 API
         await wavesurferRef.current!.load(audioUrl);
         
-      } catch (error) {
+        // Check if aborted after loading
+        if (currentAbortController.signal.aborted) {
+          console.log('WaveformVisualization: Load cancelled after completion');
+          return;
+        }
+
+        currentUrlRef.current = audioUrl;
+        console.log('WaveformVisualization: Audio loaded successfully');
+        
+      } catch (error: any) {
+        // Ignore abort errors
+        if (error?.name === 'AbortError' || currentAbortController.signal.aborted) {
+          console.log('WaveformVisualization: Audio loading was aborted (expected)');
+          return;
+        }
+
         console.error('WaveformVisualization: Audio loading failed:', error);
         setState(prev => ({
           ...prev,
           isLoading: false,
           error: error instanceof Error ? error.message : 'Failed to load audio',
         }));
+      } finally {
+        loadingRef.current = false;
       }
     };
 
     loadAudio();
+
+    // Cleanup function
+    return () => {
+      if (currentAbortController) {
+        console.log('WaveformVisualization: Aborting audio load on cleanup');
+        currentAbortController.abort();
+      }
+    };
   }, [audioUrl, disabled]);
 
   const handlePlayPause = useCallback((): void => {
