@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+cd frontend
+
+# TypeScript compilation check
+npm run type-check
+
+# ESLint with TypeScript rules
+npm run lint
+
+# Prettier formatting check
+npm run format:check
+
+# Type coverage check (must be >95%)
+npm run type-coverage
