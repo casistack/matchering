@@ -23,6 +23,9 @@ const Header = (): JSX.Element => {
         backgroundColor: 'rgba(26, 27, 30, 0.8)',
         backdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        width: '100%',
+        left: 0,
+        right: 0,
       }}
     >
       <Toolbar sx={{ py: 1 }}>
