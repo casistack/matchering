@@ -22,3 +22,4 @@ Testuploads/
 .claude/*
 claude_mcp_sync_enhanced.py
 run_claude_sync.sh
+matchering.egg-info/*
