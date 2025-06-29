@@ -2,10 +2,12 @@ import { useState, useCallback } from 'react';
 import { Container, Typography, Box, Grid, Alert } from '@mui/material';
 import AudioUpload from '@/components/audio/AudioUpload';
 import ProcessingControls from '@/components/audio/ProcessingControls';
+import ProcessingProgress from '@/components/audio/ProcessingProgress';
 import WaveformVisualization from '@/components/audio/WaveformVisualization';
 import AudioAnalyzer from '@/components/audio/AudioAnalyzer';
 import useAudioUpload from '@/hooks/useAudioUpload';
 import useAudioPlayback from '@/hooks/useAudioPlayback';
+import useProcessingJob from '@/hooks/useProcessingJob';
 import type { ProcessingMode, ProcessingSettings, AudioTrack } from '@/types';
 
 const AutoMaster = (): JSX.Element => {
@@ -16,10 +18,10 @@ const AutoMaster = (): JSX.Element => {
     preserveDynamics: true,
     targetLoudness: -16,
   });
-  const [isProcessing, setIsProcessing] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<AudioTrack | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
 
   const audioUpload = useAudioUpload({
     maxFileSize: 100 * 1024 * 1024, // 100MB
@@ -27,18 +29,26 @@ const AutoMaster = (): JSX.Element => {
     autoProcess: false,
     onUploadComplete: (metadata) => {
       console.log('File uploaded successfully:', metadata);
-      // Create audio track for playback
-      const track: AudioTrack = {
-        id: `track_${Date.now()}`,
-        name: metadata.filename,
-        url: URL.createObjectURL(new File([], metadata.filename)), // Temporary
-        metadata,
-      };
-      setCurrentTrack(track);
     },
     onUploadError: (error) => {
       console.error('Upload error:', error);
     },
+  });
+
+  const processingJob = useProcessingJob({
+    onJobStarted: (jobId, response) => {
+      console.log('Processing job started:', jobId, response);
+    },
+    onProgressUpdate: (progress, stage) => {
+      console.log('Processing progress:', progress, stage);
+    },
+    onJobCompleted: (jobId, outputUrl) => {
+      console.log('Processing completed:', jobId, outputUrl);
+    },
+    onJobFailed: (jobId, error) => {
+      console.error('Processing failed:', jobId, error);
+    },
+    autoConnectWebSocket: true,
   });
 
   const audioPlayback = useAudioPlayback({
@@ -64,6 +74,7 @@ const AutoMaster = (): JSX.Element => {
           metadata: response.metadata,
         };
         setCurrentTrack(track);
+        setUploadedFileId(response.fileId);
         
         // Load track for playback
         audioPlayback.loadTrack(track).catch(console.error);
@@ -71,21 +82,43 @@ const AutoMaster = (): JSX.Element => {
     }
   }, [audioUpload, audioPlayback]);
 
-  const handleStartProcessing = useCallback((): void => {
-    console.log('Starting processing with settings:', processingSettings);
-    setIsProcessing(true);
-    
-    // Simulate processing time
-    setTimeout(() => {
-      setIsProcessing(false);
-      console.log('Processing completed');
-    }, 5000);
-  }, [processingSettings]);
+  const handleStartProcessing = useCallback(async (): Promise<void> => {
+    if (!uploadedFileId) {
+      console.error('No file uploaded yet');
+      return;
+    }
 
-  const handleStopProcessing = useCallback((): void => {
-    console.log('Stopping processing');
-    setIsProcessing(false);
+    try {
+      console.log('Starting processing with settings:', processingSettings);
+      await processingJob.startJob(uploadedFileId, processingMode, processingSettings);
+    } catch (error) {
+      console.error('Failed to start processing:', error);
+    }
+  }, [uploadedFileId, processingMode, processingSettings, processingJob]);
+
+  const handleStopProcessing = useCallback(async (): Promise<void> => {
+    try {
+      console.log('Cancelling processing job');
+      await processingJob.cancelJob();
+    } catch (error) {
+      console.error('Failed to cancel processing:', error);
+    }
+  }, [processingJob]);
+
+  const handleDownloadResult = useCallback((url: string): void => {
+    console.log('Downloading result from:', url);
+    // Create a temporary link to trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'processed_audio.wav';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }, []);
+
+  const handleRetryProcessing = useCallback((): void => {
+    processingJob.reset();
+  }, [processingJob]);
 
   const handleAudioElementReady = useCallback((element: HTMLAudioElement): void => {
     setAudioElement(element);
@@ -132,7 +165,7 @@ const AutoMaster = (): JSX.Element => {
                 allowedFormats={['wav', 'mp3', 'flac', 'aiff']}
                 multiple={false}
                 onFilesSelected={handleFilesSelected}
-                disabled={isProcessing}
+                disabled={processingJob.state.isProcessing}
               />
               
               {audioUpload.uploadError && (
@@ -158,7 +191,7 @@ const AutoMaster = (): JSX.Element => {
                   audioUrl={currentTrack.url}
                   title={currentTrack.name}
                   height={120}
-                  disabled={isProcessing}
+                  disabled={processingJob.state.isProcessing}
                   onTimeUpdate={(time) => console.log('Waveform time:', time)}
                   onDurationChange={(duration) => console.log('Duration:', duration)}
                   onAudioElementReady={handleAudioElementReady}
@@ -197,8 +230,21 @@ const AutoMaster = (): JSX.Element => {
                   onSettingsChange={setProcessingSettings}
                   onStartProcessing={handleStartProcessing}
                   onStopProcessing={handleStopProcessing}
-                  isProcessing={isProcessing}
-                  disabled={audioUpload.isUploading}
+                  isProcessing={processingJob.state.isProcessing}
+                  disabled={audioUpload.isUploading || !uploadedFileId}
+                />
+
+                {/* Processing Progress */}
+                <ProcessingProgress
+                  state={processingJob.state}
+                  connectionState={processingJob.connectionState}
+                  isConnected={processingJob.isConnected}
+                  onCancel={handleStopProcessing}
+                  onDownload={handleDownloadResult}
+                  onRetry={handleRetryProcessing}
+                  formatProgress={processingJob.formatProgress}
+                  formatTimeRemaining={processingJob.formatTimeRemaining}
+                  formatElapsedTime={processingJob.formatElapsedTime}
                 />
               </Box>
             )}
@@ -229,7 +275,7 @@ const AutoMaster = (): JSX.Element => {
                 </Typography>
               </Box>
 
-              {isProcessing && (
+              {processingJob.state.isProcessing && (
                 <Alert severity="info">
                   <Typography variant="body2">
                     Processing your track with AI mastering algorithms...

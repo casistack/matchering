@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { audioAPI, APIClientError, NetworkClientError } from '@/services/api';
 import type { 
   AudioFileMetadata, 
   AudioFormat, 
@@ -96,29 +97,44 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
     });
   }, []);
 
-  const simulateUpload = useCallback(async (file: File): Promise<FileUploadResponse> => {
-    // Simulate upload progress
+  const performRealUpload = useCallback(async (file: File): Promise<FileUploadResponse> => {
+    // Set initial upload state
     setState(prev => ({ ...prev, isUploading: true, uploadProgress: 0, uploadError: null }));
     
     try {
-      // Simulate network delay and progress updates
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        setState(prev => ({ ...prev, uploadProgress: progress }));
-        
-        // Call progress callback
-        options.onUploadProgress?.(progress);
+      // Call progress callback for start
+      options.onUploadProgress?.(0);
+      
+      // Set initial progress (preparing upload)
+      setState(prev => ({ ...prev, uploadProgress: 10 }));
+      options.onUploadProgress?.(10);
+      
+      // Upload file using the real API
+      const uploadResponse = await audioAPI.uploadFile(file, {
+        processingMode: 'auto',
+        autoAnalyze: true,
+      });
+      
+      if (!uploadResponse.success || !uploadResponse.data) {
+        throw new Error(uploadResponse.error?.toString() || 'Upload failed');
       }
       
-      // Analyze the file
-      const metadata = await analyzeAudioFile(file);
+      // Upload completed successfully
+      setState(prev => ({ ...prev, uploadProgress: 90 }));
+      options.onUploadProgress?.(90);
       
-      // Simulate server response
-      const response: FileUploadResponse = {
-        fileId: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        uploadUrl: URL.createObjectURL(file), // Temporary URL for demo
-        metadata,
-        estimatedProcessingTime: Math.floor(metadata.duration * 0.1) || 30, // Estimate based on duration
+      const responseData = uploadResponse.data;
+      
+      // Add uploaded file to our local state
+      const metadata: AudioFileMetadata = {
+        filename: file.name,
+        format: responseData.metadata.format,
+        sampleRate: responseData.metadata.sampleRate,
+        bitDepth: responseData.metadata.bitDepth,
+        channels: responseData.metadata.channels,
+        duration: responseData.metadata.duration,
+        fileSize: file.size,
+        checksum: responseData.metadata.checksum,
       };
       
       // Update state with uploaded file
@@ -131,10 +147,20 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
       
       // Call completion callback
       options.onUploadComplete?.(metadata);
+      options.onUploadProgress?.(100);
       
-      return response;
+      return responseData;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      let errorMessage = 'Upload failed';
+      
+      if (error instanceof APIClientError) {
+        errorMessage = `API Error: ${error.message}`;
+      } else if (error instanceof NetworkClientError) {
+        errorMessage = `Network Error: ${error.message}`;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       setState(prev => ({
         ...prev,
         isUploading: false,
@@ -146,7 +172,7 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
       
       throw error;
     }
-  }, [options, analyzeAudioFile]);
+  }, [options]);
 
   const upload = useCallback(async (file: File): Promise<FileUploadResponse> => {
     // Clear previous errors
@@ -162,8 +188,8 @@ const useAudioUpload = (options: UseAudioUploadOptions = {
     }
     
     // Start upload
-    return simulateUpload(file);
-  }, [validateFile, simulateUpload, options]);
+    return performRealUpload(file);
+  }, [validateFile, performRealUpload, options]);
 
   const cancelUpload = useCallback((): void => {
     setState(prev => ({
