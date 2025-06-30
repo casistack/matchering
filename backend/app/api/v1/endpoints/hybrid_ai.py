@@ -236,7 +236,6 @@ async def extract_hybrid_features(
             )
         
         # Save uploaded file  
-        from pathlib import Path
         temp_dir = Path("temp") / "hybrid_ai"
         temp_dir.mkdir(parents=True, exist_ok=True)
         temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
@@ -503,7 +502,6 @@ async def process_hybrid_mastering(
             )
         
         # Save uploaded file  
-        from pathlib import Path
         temp_dir = Path("temp") / "hybrid_ai"
         temp_dir.mkdir(parents=True, exist_ok=True)
         temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
