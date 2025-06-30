@@ -12,6 +12,49 @@ import sys
 from pathlib import Path
 
 
+def detect_cuda_version():
+    """Detect CUDA version and compatibility."""
+    cuda_version = None
+    cuda_runtime_version = None
+    
+    try:
+        # Get CUDA runtime version from nvidia-smi
+        result = subprocess.run(['nvidia-smi', '--query-gpu=driver_version', '--format=csv,noheader,nounits'], 
+                               capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            driver_version = result.stdout.strip()
+            print(f"🔧 NVIDIA Driver: {driver_version}")
+        
+        # Get CUDA version from nvidia-smi
+        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            output = result.stdout
+            # Extract CUDA version from nvidia-smi output
+            for line in output.split('\n'):
+                if 'CUDA Version:' in line:
+                    cuda_version = line.split('CUDA Version:')[1].strip().split()[0]
+                    break
+        
+        # Get CUDA toolkit version if nvcc is available
+        try:
+            result = subprocess.run(['nvcc', '--version'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                output = result.stdout
+                for line in output.split('\n'):
+                    if 'release' in line and 'V' in line:
+                        # Extract version like "V12.1.66"
+                        version_part = line.split('V')[1].split(',')[0]
+                        cuda_runtime_version = version_part.split('.')[0] + '.' + version_part.split('.')[1]  # e.g., "12.1"
+                        break
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+            
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    return cuda_version, cuda_runtime_version
+
+
 def detect_platform():
     """Detect platform and hardware capabilities."""
     system = platform.system()
@@ -21,33 +64,48 @@ def detect_platform():
     print(f"🔍 Detected platform: {system} {machine}")
     print(f"🐍 Python version: {python_version}")
     
-    # Detect CUDA availability - check hardware first, then software
+    # Detect CUDA availability and version
     has_cuda = False
+    cuda_version = None
+    cuda_runtime_version = None
+    gpu_name = None
     
     # First check if nvidia-smi exists (hardware detection)
     try:
-        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'], 
+                               capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            print("🔧 NVIDIA GPU detected via nvidia-smi")
+            gpu_name = result.stdout.strip()
+            print(f"🚀 NVIDIA GPU detected: {gpu_name}")
             has_cuda = True
+            
+            # Get detailed CUDA version info
+            cuda_version, cuda_runtime_version = detect_cuda_version()
+            if cuda_version:
+                print(f"🔧 CUDA Driver Version: {cuda_version}")
+            if cuda_runtime_version:
+                print(f"🛠️  CUDA Runtime Version: {cuda_runtime_version}")
         else:
             print("💻 No NVIDIA GPU detected")
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         print("💻 No NVIDIA GPU detected")
     
     # Then check PyTorch CUDA support if available
+    pytorch_cuda_available = False
     try:
         import torch
-        pytorch_cuda = torch.cuda.is_available()
-        if pytorch_cuda:
+        pytorch_cuda_available = torch.cuda.is_available()
+        if pytorch_cuda_available:
             gpu_count = torch.cuda.device_count()
-            gpu_name = torch.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
-            print(f"🚀 PyTorch CUDA available: {gpu_count} GPU(s) - {gpu_name}")
+            pytorch_gpu_name = torch.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
+            pytorch_cuda_version = torch.version.cuda
+            print(f"✅ PyTorch CUDA ready: {gpu_count} GPU(s) - {pytorch_gpu_name}")
+            print(f"🔗 PyTorch CUDA version: {pytorch_cuda_version}")
             has_cuda = True
         elif has_cuda:
             print("⚠️  NVIDIA GPU detected but PyTorch CUDA not available - will install GPU PyTorch")
         else:
-            print("💻 CUDA not available - using CPU")
+            print("💻 PyTorch CUDA not available")
     except ImportError:
         if has_cuda:
             print("⚠️  NVIDIA GPU detected, PyTorch not installed yet - will install GPU PyTorch")
@@ -58,7 +116,11 @@ def detect_platform():
         "system": system,
         "machine": machine,
         "python_version": python_version,
-        "has_cuda": has_cuda
+        "has_cuda": has_cuda,
+        "cuda_version": cuda_version,
+        "cuda_runtime_version": cuda_runtime_version,
+        "gpu_name": gpu_name,
+        "pytorch_cuda_available": pytorch_cuda_available
     }
 
 
@@ -97,59 +159,133 @@ def get_install_command(platform_info):
         return "uv sync --extra ai-dev"
 
 
+def determine_pytorch_index_url(platform_info):
+    """Determine the correct PyTorch index URL based on CUDA version."""
+    if not platform_info["has_cuda"]:
+        return "https://download.pytorch.org/whl/cpu"
+    
+    cuda_version = platform_info.get("cuda_version")
+    cuda_runtime = platform_info.get("cuda_runtime_version")
+    
+    # Map CUDA versions to PyTorch wheel versions
+    if cuda_runtime:
+        if cuda_runtime.startswith("12.1"):
+            return "https://download.pytorch.org/whl/cu121"
+        elif cuda_runtime.startswith("12.4"):
+            return "https://download.pytorch.org/whl/cu124"  
+        elif cuda_runtime.startswith("11.8"):
+            return "https://download.pytorch.org/whl/cu118"
+    
+    # Fallback based on driver version
+    if cuda_version:
+        if cuda_version.startswith("12."):
+            # For CUDA 12.x, try cu121 first (most compatible)
+            return "https://download.pytorch.org/whl/cu121"
+        elif cuda_version.startswith("11."):
+            return "https://download.pytorch.org/whl/cu118"
+    
+    # Default to cu121 for modern GPUs
+    return "https://download.pytorch.org/whl/cu121"
+
+
+def install_pytorch_with_cuda(platform_info):
+    """Install PyTorch with appropriate CUDA support."""
+    if not platform_info["has_cuda"]:
+        print("💻 Installing CPU-only PyTorch...")
+        cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"]
+    else:
+        index_url = determine_pytorch_index_url(platform_info)
+        print(f"🚀 Installing GPU PyTorch with CUDA support...")
+        print(f"🔗 Using index: {index_url}")
+        cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", index_url]
+    
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
+        print("✅ PyTorch installed successfully!")
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"❌ PyTorch installation failed: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"Error output: {e.stderr}")
+        return False
+
+
 def install_dependencies(platform_info):
     """Install appropriate dependencies for the detected platform."""
     
-    install_cmd = get_install_command(platform_info)
-    
-    print(f"\n📦 Installing dependencies with: {install_cmd}")
+    print(f"\n📦 Installing dependencies for {platform_info['system']} with {'GPU' if platform_info['has_cuda'] else 'CPU'} support")
     print("=" * 50)
     
+    # Step 1: Install core dependencies first
+    print("🔧 Installing core dependencies...")
     try:
-        # Run the installation command
         result = subprocess.run(
-            install_cmd.split(),
+            ["uv", "sync"],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
+            timeout=300
         )
-        
-        print("✅ Dependencies installed successfully!")
-        
-        # Test imports
-        print("\n🧪 Testing imports...")
-        test_imports()
-        
+        print("✅ Core dependencies installed!")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"❌ Core dependencies failed: {e}")
+        return False
+    
+    # Step 2: Install PyTorch with correct CUDA version
+    print("\n🤖 Installing PyTorch...")
+    if not install_pytorch_with_cuda(platform_info):
+        print("⚠️  PyTorch installation failed, trying fallback...")
+        # Try CPU version as fallback
+        try:
+            subprocess.run(
+                ["uv", "pip", "install", "torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"],
+                check=True, timeout=300
+            )
+            print("✅ Fallback CPU PyTorch installed!")
+        except:
+            print("❌ All PyTorch installation attempts failed")
+            return False
+    
+    # Step 3: Install additional ML libraries
+    print("\n🧠 Installing ML libraries...")
+    try:
+        ml_packages = ["transformers", "accelerate", "scikit-learn"]
+        for package in ml_packages:
+            print(f"📦 Installing {package}...")
+            subprocess.run(["uv", "add", package], check=True, timeout=180)
+        print("✅ ML libraries installed!")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Installation failed: {e}")
-        print(f"Error output: {e.stderr}")
-        
-        # Fallback to basic AI dependencies
-        print("\n🔄 Trying fallback installation...")
-        fallback_cmd = "uv add librosa scikit-learn redis numpy --frozen"
-        subprocess.run(fallback_cmd.split(), check=True)
-        print("✅ Fallback installation completed")
+        print(f"⚠️  Some ML libraries failed to install: {e}")
+    
+    # Step 4: Test imports
+    print("\n🧪 Testing imports...")
+    return test_imports()
 
 
 def test_imports():
     """Test that critical AI dependencies can be imported."""
     
-    imports_to_test = [
+    # Core dependencies (must work)
+    core_imports = [
         ("numpy", "NumPy"),
-        ("librosa", "Librosa"),
+        ("scipy", "SciPy"), 
         ("sklearn", "Scikit-learn"),
         ("redis", "Redis"),
+        ("soundfile", "SoundFile"),
     ]
     
-    # Optional imports
-    optional_imports = [
+    # AI/ML imports (important but optional for basic functionality)
+    ai_imports = [
         ("torch", "PyTorch"),
         ("torchaudio", "TorchAudio"),
+        ("transformers", "Transformers"),
+        ("audioflux", "AudioFlux"),
     ]
     
+    print("🧪 Testing core dependencies...")
     success_count = 0
     
-    for module, name in imports_to_test:
+    for module, name in core_imports:
         try:
             __import__(module)
             print(f"✅ {name} - OK")
@@ -157,18 +293,45 @@ def test_imports():
         except ImportError:
             print(f"❌ {name} - Failed")
     
-    for module, name in optional_imports:
-        try:
-            __import__(module)
-            print(f"✅ {name} - OK (optional)")
-        except ImportError:
-            print(f"⚠️  {name} - Not available (optional)")
+    print(f"\n🤖 Testing AI/ML dependencies...")
+    ai_success_count = 0
     
-    if success_count == len(imports_to_test):
-        print(f"\n🎉 All {success_count} core dependencies imported successfully!")
+    for module, name in ai_imports:
+        try:
+            imported_module = __import__(module)
+            print(f"✅ {name} - OK")
+            
+            # Special test for PyTorch CUDA
+            if module == "torch":
+                if hasattr(imported_module, 'cuda') and imported_module.cuda.is_available():
+                    gpu_count = imported_module.cuda.device_count()
+                    gpu_name = imported_module.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
+                    print(f"  🚀 CUDA available: {gpu_count} GPU(s) - {gpu_name}")
+                else:
+                    print(f"  💻 CUDA not available (CPU only)")
+            
+            ai_success_count += 1
+        except ImportError as e:
+            print(f"⚠️  {name} - Not available")
+        except Exception as e:
+            print(f"⚠️  {name} - Import error: {e}")
+    
+    # Summary
+    core_success = success_count == len(core_imports)
+    ai_available = ai_success_count > 0
+    
+    print(f"\n📊 Import Summary:")
+    print(f"   Core dependencies: {success_count}/{len(core_imports)} ({'✅ PASS' if core_success else '❌ FAIL'})")
+    print(f"   AI/ML dependencies: {ai_success_count}/{len(ai_imports)} ({'✅ GOOD' if ai_available else '⚠️  LIMITED'})")
+    
+    if core_success and ai_available:
+        print(f"\n🎉 Environment ready for AI development!")
+        return True
+    elif core_success:
+        print(f"\n⚠️  Basic environment ready, but AI capabilities limited")
         return True
     else:
-        print(f"\n⚠️  Only {success_count}/{len(imports_to_test)} core dependencies working")
+        print(f"\n❌ Environment setup incomplete - core dependencies missing")
         return False
 
 
