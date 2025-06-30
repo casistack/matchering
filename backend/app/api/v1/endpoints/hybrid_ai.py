@@ -235,8 +235,11 @@ async def extract_hybrid_features(
                 detail=f"Invalid audio file format. Supported: {', '.join(allowed_extensions)}"
             )
         
-        # Save uploaded file
-        temp_file_path, checksum = await save_uploaded_file(file)
+        # Save uploaded file  
+        from pathlib import Path
+        temp_dir = Path("temp") / "hybrid_ai"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
         
         # Get hybrid extractor
         extractor = await get_hybrid_extractor()
@@ -294,6 +297,7 @@ async def extract_hybrid_features(
     description="Analyze audio characteristics and recommend the best AI model for mastering."
 )
 async def select_optimal_model(
+    request: Request,
     file: UploadFile = File(..., description="Audio file to analyze")
 ) -> ModelSelectionResponse:
     """
@@ -308,6 +312,7 @@ async def select_optimal_model(
     try:
         # Extract features for analysis
         feature_response = await extract_hybrid_features(
+            request=request,
             file=file,
             include_model_features=False,  # Only need characteristics
             include_custom_features=True,
@@ -347,6 +352,7 @@ async def select_optimal_model(
     description="Use hybrid AI models to predict optimal mastering parameters for audio content."
 )
 async def predict_mastering_parameters(
+    http_request: Request,
     file: UploadFile = File(..., description="Audio file to analyze"),
     request: HybridMasteringRequest = Depends()
 ) -> Dict:
@@ -364,7 +370,7 @@ async def predict_mastering_parameters(
     
     try:
         # Extract hybrid features
-        feature_response = await extract_hybrid_features(file=file, cache_result=True)
+        feature_response = await extract_hybrid_features(request=http_request, file=file, cache_result=True)
         characteristics = AudioCharacteristics(**feature_response["audio_characteristics"])
         
         # Select model if auto mode
@@ -452,6 +458,7 @@ async def predict_mastering_parameters(
     description="Complete hybrid AI mastering pipeline with intelligent model selection and processing."
 )
 async def process_hybrid_mastering(
+    http_request: Request,
     file: UploadFile = File(..., description="Audio file to master"),
     request: HybridMasteringRequest = Depends(),
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -495,11 +502,14 @@ async def process_hybrid_mastering(
                 detail=f"Invalid audio file format. Supported: {', '.join(allowed_extensions)}"
             )
         
-        # Save uploaded file
-        temp_file_path, checksum = await save_uploaded_file(file)
+        # Save uploaded file  
+        from pathlib import Path
+        temp_dir = Path("temp") / "hybrid_ai"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
         
         # Extract features and predict parameters
-        prediction_response = await predict_mastering_parameters(file, request)
+        prediction_response = await predict_mastering_parameters(http_request, file, request)
         
         # Generate job ID
         import uuid
