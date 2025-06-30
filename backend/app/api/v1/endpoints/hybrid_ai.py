@@ -819,8 +819,11 @@ async def _process_audio_background(
                 self.filename = filename
                 self.size = len(content)
             
-            async def read(self) -> bytes:
-                return self._content.getvalue()
+            async def read(self, size: int = -1) -> bytes:
+                if size == -1:
+                    return self._content.getvalue()
+                else:
+                    return self._content.read(size)
             
             async def seek(self, position: int) -> None:
                 self._content.seek(position)
