@@ -21,19 +21,38 @@ def detect_platform():
     print(f"🔍 Detected platform: {system} {machine}")
     print(f"🐍 Python version: {python_version}")
     
-    # Detect CUDA availability
+    # Detect CUDA availability - check hardware first, then software
     has_cuda = False
+    
+    # First check if nvidia-smi exists (hardware detection)
+    try:
+        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            print("🔧 NVIDIA GPU detected via nvidia-smi")
+            has_cuda = True
+        else:
+            print("💻 No NVIDIA GPU detected")
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        print("💻 No NVIDIA GPU detected")
+    
+    # Then check PyTorch CUDA support if available
     try:
         import torch
-        has_cuda = torch.cuda.is_available()
-        if has_cuda:
+        pytorch_cuda = torch.cuda.is_available()
+        if pytorch_cuda:
             gpu_count = torch.cuda.device_count()
             gpu_name = torch.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
-            print(f"🚀 CUDA available: {gpu_count} GPU(s) - {gpu_name}")
+            print(f"🚀 PyTorch CUDA available: {gpu_count} GPU(s) - {gpu_name}")
+            has_cuda = True
+        elif has_cuda:
+            print("⚠️  NVIDIA GPU detected but PyTorch CUDA not available - will install GPU PyTorch")
         else:
             print("💻 CUDA not available - using CPU")
     except ImportError:
-        print("⚠️  PyTorch not installed yet")
+        if has_cuda:
+            print("⚠️  NVIDIA GPU detected, PyTorch not installed yet - will install GPU PyTorch")
+        else:
+            print("⚠️  PyTorch not installed yet")
     
     return {
         "system": system,
