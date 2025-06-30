@@ -31,3 +31,4 @@ backend/.env
 backend/dev_matchering.db
 enhanced_matchering.egg-info/*
 logs/tensorboard/*
+backend/model_cache/*

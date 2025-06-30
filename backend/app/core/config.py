@@ -88,6 +88,13 @@ class Settings(BaseSettings):
         env="MATCHERING_JOB_TIMEOUT_SECONDS"
     )
     
+    # AI Model settings
+    ENABLE_AI_MODELS: bool = Field(
+        default=True,
+        env="MATCHERING_ENABLE_AI_MODELS",
+        description="Enable AI model loading on startup"
+    )
+    
     # Logging settings
     LOG_LEVEL: str = Field(default="INFO", env="MATCHERING_LOG_LEVEL")
     LOG_FORMAT: str = Field(

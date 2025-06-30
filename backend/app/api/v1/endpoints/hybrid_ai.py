@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 from pathlib import Path
 
 import torch
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,9 +40,15 @@ mastering_models = {}
 model_selector = None
 
 
-def get_production_model_manager():
-    """Get or create the production model manager instance."""
+def get_production_model_manager(request: Request = None):
+    """Get the production model manager instance from app state or create one."""
     global production_model_manager
+    
+    # Try to get from app state first (if request is provided)
+    if request and hasattr(request.app.state, 'model_manager') and request.app.state.model_manager:
+        return request.app.state.model_manager
+    
+    # Fallback to global instance
     if production_model_manager is None:
         try:
             from app.ai.production_model_manager import ProductionModelManager
@@ -60,7 +66,10 @@ def get_production_model_manager():
             logger.info("Production model manager initialized")
         except Exception as e:
             logger.error(f"Failed to initialize production model manager: {e}")
-            production_model_manager = None
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"AI model service unavailable: {str(e)}"
+            )
     
     return production_model_manager
 
@@ -189,6 +198,7 @@ async def get_model_selector():
     description="Extract comprehensive features using multiple pre-trained models and custom feature extraction."
 )
 async def extract_hybrid_features(
+    request: Request,
     file: UploadFile = File(..., description="Audio file to analyze"),
     include_model_features: bool = True,
     include_custom_features: bool = True,
@@ -680,9 +690,22 @@ async def get_available_models() -> Dict:
 
 # Health check endpoint
 @router.get("/health", summary="Hybrid AI service health check")
-async def health_check():
+async def health_check(request: Request):
     """Check hybrid AI service health status."""
     try:
+        # Check if models are initialized from app state
+        if hasattr(request.app.state, 'models_initialized') and request.app.state.models_initialized:
+            available_models = getattr(request.app.state, 'available_models', [])
+            return {
+                "status": "healthy",
+                "service": "hybrid-ai-mastering",
+                "available_models": {model: True for model in available_models},
+                "total_models": len(available_models),
+                "timestamp": time.time(),
+                "message": "Models loaded from app state"
+            }
+        
+        # Fallback to checking hybrid extractor
         extractor = await get_hybrid_extractor()
         model_availability = extractor.model_loader.get_all_available_models()
         
