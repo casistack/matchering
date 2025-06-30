@@ -529,29 +529,44 @@ async def process_hybrid_mastering(
         
         # Create basic audio characteristics for immediate response
         basic_characteristics = AudioCharacteristics(
-            duration=0.0,  # Will be updated in background
-            sample_rate=0,  # Will be updated in background
-            channels=0,  # Will be updated in background
-            format="unknown",  # Will be updated in background
-            file_size=file.size or 0,
             genre="unknown",
             genre_confidence=0.0,
+            has_vocals=False,
+            is_instrumental=True,  # Default assumption
             energy_level=0.5,
+            dynamic_range=20.0,  # Default dynamic range in dB
             complexity_score=0.5,
-            audio_quality=0.5,
-            has_vocals=False
+            tempo_bpm=120.0,  # Default tempo
+            key_signature="C",  # Default key
+            audio_quality=0.5
         )
         
-        # Create basic mastering parameters
+        # Create basic mastering parameters with all required fields
         basic_parameters = MasteringParameters(
-            eq_low_gain=0.0,
-            eq_mid_gain=0.0,
-            eq_high_gain=0.0,
+            # Genre Classification
+            genre_probabilities={"unknown": 1.0},
+            predicted_genre="unknown",
+            
+            # EQ Parameters (31-band EQ curve) 
+            eq_curve=[0.0] * 31,  # 31 bands, all flat
+            
+            # Compression Parameters
             compression_ratio=2.0,
+            compression_attack=10.0,  # ms
+            compression_release=100.0,  # ms
             compression_threshold=-12.0,
-            limiting_ceiling=-0.5,
+            
+            # Stereo Processing
             stereo_width=1.0,
-            harmonic_enhancement=0.3
+            stereo_pan=0.0,  # Center
+            
+            # Limiting Parameters
+            limiting_threshold=-6.0,  # dB
+            limiting_release=10.0,  # ms
+            limiting_ceiling=-0.5,  # dB
+            
+            # Confidence Score
+            confidence=0.5  # Neutral confidence for placeholder
         )
         
         response = HybridMasteringResponse(
