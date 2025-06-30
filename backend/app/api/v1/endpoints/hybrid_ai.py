@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/hybrid-ai", tags=["Hybrid AI Mastering"])
+router = APIRouter(tags=["Hybrid AI Mastering"])
 
 # Global production instances
 production_model_manager = None

@@ -236,23 +236,44 @@ class ProductionModelManager:
     def _download_and_cache_model(self, model_type: str, config: ModelConfig) -> Tuple[Any, Any]:
         """Download model and cache for future use."""
         try:
-            # Download model
-            model = AutoModel.from_pretrained(
-                config.model_name,
-                trust_remote_code=False,
-                use_safetensors=True,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
-            )
-            
-            # Download processor
-            processor = None
-            try:
-                processor = AutoProcessor.from_pretrained(config.model_name)
-            except:
+            # Special handling for CLAP models
+            if model_type == 'clap':
                 try:
-                    processor = AutoFeatureExtractor.from_pretrained(config.model_name)
+                    # CLAP requires specific loading
+                    import laion_clap
+                    model = laion_clap.CLAP_Module(enable_fusion=False)
+                    model.load_ckpt()  # This downloads and loads the model
+                    processor = None  # CLAP handles its own processing
+                    logger.info(f"Successfully loaded CLAP model using laion_clap")
+                except ImportError:
+                    logger.warning("laion_clap not available, trying alternative CLAP loading")
+                    # Try loading with transformers if available
+                    try:
+                        from transformers import ClapModel, ClapProcessor
+                        model = ClapModel.from_pretrained(config.model_name)
+                        processor = ClapProcessor.from_pretrained(config.model_name)
+                    except Exception as e:
+                        logger.error(f"Alternative CLAP loading failed: {e}")
+                        # Skip CLAP for now - it's optional
+                        return None, None
+            else:
+                # Standard model loading for AST, Wav2Vec2, etc.
+                model = AutoModel.from_pretrained(
+                    config.model_name,
+                    trust_remote_code=False,
+                    use_safetensors=True,
+                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+                )
+                
+                # Download processor
+                processor = None
+                try:
+                    processor = AutoProcessor.from_pretrained(config.model_name)
                 except:
-                    logger.warning(f"No processor found for {model_type}")
+                    try:
+                        processor = AutoFeatureExtractor.from_pretrained(config.model_name)
+                    except:
+                        logger.warning(f"No processor found for {model_type}")
             
             # Cache models
             self._cache_model(model_type, model, processor)

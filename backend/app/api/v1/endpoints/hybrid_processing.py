@@ -42,7 +42,7 @@ from app.models.processing import ProcessingJob, JobStatus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/hybrid-processing", tags=["Hybrid Processing"])
+router = APIRouter(tags=["Hybrid Processing"])
 
 # Global processing engine instance
 processing_engine: Optional[HybridProcessingEngine] = None
