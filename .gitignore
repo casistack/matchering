@@ -30,3 +30,4 @@ DEVELOPMENT-PROCESS.md
 backend/.env
 backend/dev_matchering.db
 enhanced_matchering.egg-info/*
+logs/tensorboard/*
