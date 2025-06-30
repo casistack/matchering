@@ -18,7 +18,7 @@ class FeatureExtractionRequest(BaseModel):
     analysis_depth: str = Field(
         default="standard",
         description="Analysis depth: fast, standard, or full",
-        regex="^(fast|standard|full)$"
+        pattern="^(fast|standard|full)$"
     )
     cache_result: bool = Field(
         default=True,
@@ -72,7 +72,7 @@ class ParameterPredictionRequest(BaseModel):
     processing_mode: str = Field(
         default="auto",
         description="Processing mode: auto, reference, or hybrid",
-        regex="^(auto|reference|hybrid)$"
+        pattern="^(auto|reference|hybrid)$"
     )
     target_loudness: Optional[float] = Field(
         default=None,
@@ -131,7 +131,7 @@ class HybridProcessingRequest(BaseModel):
     processing_mode: str = Field(
         default="hybrid",
         description="Processing mode",
-        regex="^(ai_autonomous|reference_based|hybrid)$"
+        pattern="^(ai_autonomous|reference_based|hybrid)$"
     )
     reference_file_id: Optional[str] = Field(
         default=None,
