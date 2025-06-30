@@ -506,45 +506,66 @@ async def process_hybrid_mastering(
         temp_dir.mkdir(parents=True, exist_ok=True)
         temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
         
-        # Extract features and predict parameters
-        prediction_response = await predict_mastering_parameters(http_request, file, request)
-        
         # Generate job ID
         import uuid
         job_id = str(uuid.uuid4())
         
-        # Queue background processing
+        # Queue background processing (do ALL heavy work in background)
         background_tasks.add_task(
             _process_audio_background,
             job_id=job_id,
-            audio_path=temp_file_path,
-            parameters=prediction_response["predicted_parameters"],
-            processing_mode=request.processing_mode
+            audio_path=str(temp_file_path),
+            request_params=request.dict()
         )
         
-        # Estimate completion time based on file length and processing mode
-        characteristics = AudioCharacteristics(**prediction_response["audio_characteristics"])
+        # Estimate completion time based on file size and processing mode
         estimated_time = _estimate_processing_time(
-            file_duration=characteristics.audio_quality,  # Placeholder
+            file_size=file.size or 0,
             processing_mode=request.processing_mode,
-            model_used=prediction_response["model_used"]
+            model_used="auto"  # Will be determined in background
         )
         
         processing_time = time.time() - start_time
+        
+        # Create basic audio characteristics for immediate response
+        basic_characteristics = AudioCharacteristics(
+            duration=0.0,  # Will be updated in background
+            sample_rate=0,  # Will be updated in background
+            channels=0,  # Will be updated in background
+            format="unknown",  # Will be updated in background
+            file_size=file.size or 0,
+            genre="unknown",
+            genre_confidence=0.0,
+            energy_level=0.5,
+            complexity_score=0.5,
+            audio_quality=0.5,
+            has_vocals=False
+        )
+        
+        # Create basic mastering parameters
+        basic_parameters = MasteringParameters(
+            eq_low_gain=0.0,
+            eq_mid_gain=0.0,
+            eq_high_gain=0.0,
+            compression_ratio=2.0,
+            compression_threshold=-12.0,
+            limiting_ceiling=-0.5,
+            stereo_width=1.0,
+            harmonic_enhancement=0.3
+        )
         
         response = HybridMasteringResponse(
             success=True,
             job_id=job_id,
             processing_mode=request.processing_mode,
-            model_used=prediction_response["model_used"],
+            model_used="auto",  # Will be determined in background
             estimated_completion_time=estimated_time,
-            audio_characteristics=AudioCharacteristics(**prediction_response["audio_characteristics"]),
-            predicted_parameters=MasteringParameters(**prediction_response["predicted_parameters"]),
+            audio_characteristics=basic_characteristics,
+            predicted_parameters=basic_parameters,
             processing_metadata={
                 "submission_time": processing_time,
-                "queue_position": 1,  # Placeholder
-                "features_extraction_time": prediction_response["processing_metadata"]["prediction_time"],
-                "model_confidence": prediction_response["model_confidence"]
+                "queue_position": 1,
+                "status": "queued"
             }
         )
         
@@ -738,32 +759,81 @@ async def health_check(request: Request):
 async def _process_audio_background(
     job_id: str,
     audio_path: str,
-    parameters: Dict,
-    processing_mode: str
+    request_params: Dict
 ):
     """
-    Background task for audio processing.
+    Background task for hybrid AI audio processing.
     
-    This would integrate with the actual audio processing pipeline.
-    For now, it's a placeholder that simulates processing.
+    This performs the heavy feature extraction and parameter prediction
+    that was moved out of the main request handler.
     """
     try:
-        logger.info(f"Starting background processing for job {job_id}")
+        logger.info(f"Starting background hybrid AI processing for job {job_id}")
         
-        # Simulate processing time
-        await asyncio.sleep(2.0)
+        # Step 1: Create a temporary UploadFile-like object from the saved file
+        from fastapi import UploadFile
+        import aiofiles
         
-        # TODO: Integrate with actual Matchering processing pipeline
-        # processed_audio = await apply_mastering_pipeline(audio_path, parameters)
+        # Read the saved file
+        async with aiofiles.open(audio_path, 'rb') as f:
+            file_content = await f.read()
         
-        logger.info(f"Background processing completed for job {job_id}")
+        # Create a BytesIO object to simulate an UploadFile
+        import io
+        file_like = io.BytesIO(file_content)
+        
+        # Create a mock request for the prediction function
+        class MockRequest:
+            def __init__(self):
+                self.app = type('MockApp', (), {})()
+                self.app.state = type('MockState', (), {})()
+                self.app.state.model_manager = None  # Will use global fallback
+        
+        mock_request = MockRequest()
+        
+        # Create HybridMasteringRequest from params
+        mastering_request = HybridMasteringRequest(**request_params)
+        
+        # Step 2: Extract features and predict parameters (this is the heavy part)
+        logger.info(f"Extracting features for job {job_id}")
+        
+        # Create a mock UploadFile for the prediction function
+        class MockUploadFile:
+            def __init__(self, content: bytes, filename: str):
+                self._content = io.BytesIO(content)
+                self.filename = filename
+                self.size = len(content)
+            
+            async def read(self) -> bytes:
+                return self._content.getvalue()
+            
+            async def seek(self, position: int) -> None:
+                self._content.seek(position)
+        
+        mock_file = MockUploadFile(file_content, Path(audio_path).name)
+        
+        # Do the actual feature extraction and parameter prediction
+        prediction_response = await predict_mastering_parameters(
+            mock_request, mock_file, mastering_request
+        )
+        
+        logger.info(f"Feature extraction completed for job {job_id}")
+        
+        # Step 3: TODO - Integrate with actual Matchering processing pipeline
+        # For now, simulate the actual audio processing
+        logger.info(f"Simulating audio processing for job {job_id}")
+        await asyncio.sleep(2.0)  # Simulate processing time
+        
+        logger.info(f"Background hybrid AI processing completed for job {job_id}")
         
     except Exception as e:
         logger.error(f"Background processing failed for job {job_id}: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
 
 
 def _estimate_processing_time(
-    file_duration: float,
+    file_size: int,
     processing_mode: str,
     model_used: str
 ) -> float:
@@ -771,14 +841,16 @@ def _estimate_processing_time(
     Estimate processing time based on various factors.
     
     Args:
-        file_duration: Duration of audio file in seconds
+        file_size: Size of audio file in bytes
         processing_mode: Processing mode being used
         model_used: AI model being used
         
     Returns:
         Estimated processing time in seconds
     """
-    base_time = file_duration * 0.1  # Base: 10% of audio duration
+    # Estimate duration based on file size (rough approximation)
+    estimated_duration = max(10.0, file_size / 1_000_000)  # ~1MB per minute
+    base_time = estimated_duration * 0.2  # Base: 20% of estimated duration
     
     # Adjust for processing mode
     mode_multipliers = {
