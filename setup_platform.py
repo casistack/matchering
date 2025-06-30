@@ -167,6 +167,12 @@ def determine_pytorch_index_url(platform_info):
     cuda_version = platform_info.get("cuda_version")
     cuda_runtime = platform_info.get("cuda_runtime_version")
     
+    # For Enhanced Matchering, we standardize on CUDA 12.4 for RTX 4090
+    # This ensures compatibility with our specific CUDA setup
+    if platform_info.get("gpu_name") and "RTX 4090" in platform_info["gpu_name"]:
+        print("🚀 RTX 4090 detected - using CUDA 12.4 optimized PyTorch")
+        return "https://download.pytorch.org/whl/cu124"
+    
     # Map CUDA versions to PyTorch wheel versions
     if cuda_runtime:
         if cuda_runtime.startswith("12.1"):
@@ -179,13 +185,13 @@ def determine_pytorch_index_url(platform_info):
     # Fallback based on driver version
     if cuda_version:
         if cuda_version.startswith("12."):
-            # For CUDA 12.x, try cu121 first (most compatible)
-            return "https://download.pytorch.org/whl/cu121"
+            # For CUDA 12.x, try cu124 for modern setups
+            return "https://download.pytorch.org/whl/cu124"
         elif cuda_version.startswith("11."):
             return "https://download.pytorch.org/whl/cu118"
     
-    # Default to cu121 for modern GPUs
-    return "https://download.pytorch.org/whl/cu121"
+    # Default to cu124 for modern GPUs
+    return "https://download.pytorch.org/whl/cu124"
 
 
 def install_pytorch_with_cuda(platform_info):
@@ -197,7 +203,12 @@ def install_pytorch_with_cuda(platform_info):
         index_url = determine_pytorch_index_url(platform_info)
         print(f"🚀 Installing GPU PyTorch with CUDA support...")
         print(f"🔗 Using index: {index_url}")
-        cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", index_url]
+        
+        # For CUDA 12.4 setups, install specific versions to ensure compatibility
+        if "cu124" in index_url:
+            cmd = ["uv", "pip", "install", "torch==2.5.1+cu124", "torchaudio==2.5.1+cu124", "--index-url", index_url]
+        else:
+            cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", index_url]
     
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
@@ -373,6 +384,70 @@ PRECISION = "{config['ai_model']['precision']}"
     print(f"📝 Platform configuration saved to: {config_path}")
 
 
+def create_cuda_env_script():
+    """Create a script to set CUDA environment variables."""
+    
+    # Create environment setup script
+    env_script_path = Path("setup_cuda_env.sh")
+    
+    with open(env_script_path, "w") as f:
+        f.write("""#!/bin/bash
+# CUDA Environment Setup for Enhanced Matchering
+# Source this file before running Python: source setup_cuda_env.sh
+
+# Set CUDA paths for PyTorch compatibility
+export CUDA_HOME=/usr/local/cuda-12.4
+export LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH
+export PATH=/usr/local/cuda-12.4/bin:$PATH
+
+echo "✅ CUDA environment variables set for PyTorch 2.5.1+cu124"
+echo "🚀 Ready for GPU-accelerated audio processing"
+""")
+    
+    # Make it executable
+    subprocess.run(["chmod", "+x", str(env_script_path)], check=True)
+    print(f"📝 CUDA environment script created: {env_script_path}")
+    
+    # Create Python wrapper script
+    python_wrapper_path = Path("run_with_cuda.py")
+    
+    with open(python_wrapper_path, "w") as f:
+        f.write("""#!/usr/bin/env python3
+\"\"\"
+Python wrapper that automatically sets CUDA environment before importing PyTorch.
+Use this instead of 'python' when running Enhanced Matchering scripts.
+\"\"\"
+
+import os
+import sys
+
+# Set CUDA environment variables before any PyTorch imports
+os.environ['CUDA_HOME'] = '/usr/local/cuda-12.4'
+cuda_lib_path = '/usr/local/cuda-12.4/lib64'
+if 'LD_LIBRARY_PATH' in os.environ:
+    os.environ['LD_LIBRARY_PATH'] = f"{cuda_lib_path}:{os.environ['LD_LIBRARY_PATH']}"
+else:
+    os.environ['LD_LIBRARY_PATH'] = cuda_lib_path
+
+# Now safe to import and run PyTorch code
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python run_with_cuda.py <script.py> [args...]")
+        sys.exit(1)
+    
+    script_path = sys.argv[1]
+    script_args = sys.argv[2:]
+    
+    # Execute the target script with CUDA environment set
+    import subprocess
+    cmd = [sys.executable, script_path] + script_args
+    subprocess.run(cmd)
+""")
+    
+    subprocess.run(["chmod", "+x", str(python_wrapper_path)], check=True)
+    print(f"📝 Python CUDA wrapper created: {python_wrapper_path}")
+
+
 def main():
     """Main setup routine."""
     
@@ -393,6 +468,10 @@ def main():
     # Create platform config
     create_platform_config()
     
+    # Create CUDA environment helpers for Linux GPU systems
+    if platform_info["system"] == "Linux" and platform_info["has_cuda"]:
+        create_cuda_env_script()
+    
     print("\n" + "=" * 50)
     print("🎉 Setup complete!")
     
@@ -406,11 +485,17 @@ def main():
         if platform_info["has_cuda"]:
             print("   • GPU acceleration enabled for fast AI inference")
             print("   • Perfect for production deployment")
+            print("   • CUDA environment helpers created for consistent PyTorch usage")
         else:
             print("   • Consider installing CUDA for better performance")
     
     print("\n📚 Next steps:")
-    print("   • Run: uv run python backend/test_ai_imports.py")
+    if platform_info["system"] == "Linux" and platform_info["has_cuda"]:
+        print("   • Source CUDA environment: source setup_cuda_env.sh")
+        print("   • Or use Python wrapper: python run_with_cuda.py <script>")
+        print("   • Test setup: uv run python run_with_cuda.py -c \"import torch; print('CUDA:', torch.cuda.is_available())\"")
+    else:
+        print("   • Run: uv run python backend/test_ai_imports.py")
     print("   • Start development: uv run python backend/run.py")
 
 
