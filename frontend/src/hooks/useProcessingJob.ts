@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { processingAPI, APIClientError, NetworkClientError } from '@/services/api';
+import { processingAPI, hybridAI, APIClientError, NetworkClientError } from '@/services/api';
 import { useJobProgress } from '@/hooks/useJobProgress';
 import type { 
   ProcessingMode, 
@@ -51,7 +51,7 @@ export interface UseProcessingJobOptions {
  */
 export interface UseProcessingJobReturn {
   // Job management
-  startJob: (fileId: string, mode: ProcessingMode, settings: ProcessingSettings, referenceFileId?: string) => Promise<string>;
+  startJob: (fileIdOrFile: string | File, mode: ProcessingMode, settings: ProcessingSettings, referenceFileId?: string) => Promise<string>;
   cancelJob: () => Promise<void>;
   
   // State
@@ -153,7 +153,7 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
    * Start a new processing job
    */
   const startJob = useCallback(async (
-    fileId: string,
+    fileIdOrFile: string | File,
     mode: ProcessingMode,
     settings: ProcessingSettings,
     referenceFileId?: string
@@ -163,33 +163,66 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
       setState(initialState);
       setState(prev => ({ ...prev, status: 'creating' }));
 
-      // Create job request
-      const jobRequest: ProcessingJobRequest = {
-        fileId,
-        mode,
-        settings,
-        referenceFileId,
-      };
+      // Handle different processing modes
+      let response: any;
+      
+      if (mode === 'hybrid' && fileIdOrFile instanceof File) {
+        // Use hybrid AI API for hybrid mode
+        const hybridOptions = {
+          modelPreference: 'auto',
+          processingMode: mode,
+          intensityLevel: settings.intensity,
+          preserveDynamics: settings.preserveDynamics,
+          targetLoudnessLufs: settings.targetLoudness,
+          referenceFileId,
+        };
+        
+        response = await hybridAI.processHybrid(fileIdOrFile, hybridOptions);
+      } else {
+        // Use regular processing API for auto and reference modes
+        const fileId = typeof fileIdOrFile === 'string' ? fileIdOrFile : '';
+        const jobRequest: ProcessingJobRequest = {
+          fileId,
+          mode,
+          settings,
+          referenceFileId,
+        };
 
-      // Call API to create job
-      const response = await processingAPI.createJob(jobRequest);
+        response = await processingAPI.createJob(jobRequest);
+      }
 
       if (!response.success || !response.data) {
         throw new Error(response.error || 'Failed to create processing job');
       }
 
       const jobData = response.data;
+      
+      // Handle different response formats
+      let jobId: string;
+      let queuePosition = 1;
+      let estimatedCompletion: string | null = null;
+      
+      if (mode === 'hybrid') {
+        // Hybrid AI response format
+        jobId = jobData.job_id;
+        estimatedCompletion = `${Math.round(jobData.estimated_completion_time)} seconds`;
+      } else {
+        // Regular processing response format
+        jobId = jobData.jobId;
+        queuePosition = jobData.queuePosition || 1;
+        estimatedCompletion = jobData.estimatedCompletion;
+      }
 
       // Update state with job information
       setState(prev => ({
         ...prev,
-        jobId: jobData.jobId,
+        jobId: jobId,
         status: 'queued',
-        queuePosition: jobData.queuePosition,
-        estimatedCompletion: jobData.estimatedCompletion,
+        queuePosition: queuePosition,
+        estimatedCompletion: estimatedCompletion,
         isProcessing: true,
         canCancel: true,
-        message: `Job queued (position ${jobData.queuePosition})`,
+        message: `Job queued (position ${queuePosition})`,
       }));
 
       // Connect to WebSocket for progress updates if enabled
@@ -202,9 +235,9 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
       }
 
       // Call user callback
-      optionsRef.current.onJobStarted?.(jobData.jobId, jobData);
+      optionsRef.current.onJobStarted?.(jobId, jobData);
 
-      return jobData.jobId;
+      return jobId;
 
     } catch (error) {
       let errorMessage = 'Failed to start processing job';

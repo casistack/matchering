@@ -246,7 +246,173 @@ export const processingAPI = {
    * Create a new processing job
    */
   async createJob(request: ProcessingJobRequest): Promise<APIResponse<ProcessingJobResponse>> {
+    // Route based on processing mode
+    if (request.mode === 'hybrid') {
+      // Use hybrid AI endpoint for hybrid mode
+      const formData = new FormData();
+      
+      // Note: This assumes we have the actual file, but we might need to adjust
+      // the API to work with file IDs. For now, we'll fallback to regular processing
+      return apiClient.post<ProcessingJobResponse>('/processing/jobs', request);
+    }
+    
     return apiClient.post<ProcessingJobResponse>('/processing/jobs', request);
+  },
+
+  /**
+   * Cancel a processing job
+   */
+  async cancelJob(jobId: string): Promise<APIResponse<void>> {
+    return apiClient.post<void>(`/processing/jobs/${jobId}/cancel`);
+  },
+};
+
+/**
+ * Hybrid AI Processing API
+ */
+export const hybridAI = {
+  /**
+   * Check hybrid AI service health
+   */
+  async healthCheck(): Promise<APIResponse<{ status: string; service: string; available_models: Record<string, boolean> }>> {
+    return apiClient.get('/hybrid-ai/health');
+  },
+
+  /**
+   * Get available AI models
+   */
+  async getAvailableModels(): Promise<APIResponse<{ models: Record<string, any>; total_available: number }>> {
+    return apiClient.get('/hybrid-ai/available-models');
+  },
+
+  /**
+   * Extract hybrid features from audio file
+   */
+  async extractFeatures(file: File, options: {
+    includeModelFeatures?: boolean;
+    includeCustomFeatures?: boolean;
+    cacheResult?: boolean;
+  } = {}): Promise<APIResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('include_model_features', options.includeModelFeatures !== false ? 'true' : 'false');
+    formData.append('include_custom_features', options.includeCustomFeatures !== false ? 'true' : 'false');
+    formData.append('cache_result', options.cacheResult !== false ? 'true' : 'false');
+    
+    return apiClient.postForm('/hybrid-ai/extract-hybrid-features', formData);
+  },
+
+  /**
+   * Select optimal model for audio content
+   */
+  async selectModel(file: File): Promise<APIResponse<{
+    recommended_model: string;
+    model_confidence: number;
+    audio_characteristics: any;
+    available_models: string[];
+    selection_reasoning: string;
+  }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return apiClient.postForm('/hybrid-ai/select-model', formData);
+  },
+
+  /**
+   * Predict mastering parameters using hybrid AI
+   */
+  async predictParameters(file: File, options: {
+    modelPreference?: string;
+    userStyle?: string;
+    processingMode?: string;
+    intensityLevel?: string;
+    preserveDynamics?: boolean;
+    targetLoudnessLufs?: number;
+  } = {}): Promise<APIResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (options.modelPreference) {
+      formData.append('model_preference', options.modelPreference);
+    }
+    if (options.userStyle) {
+      formData.append('user_style', options.userStyle);
+    }
+    if (options.processingMode) {
+      formData.append('processing_mode', options.processingMode);
+    }
+    if (options.intensityLevel) {
+      formData.append('intensity_level', options.intensityLevel);
+    }
+    if (options.preserveDynamics !== undefined) {
+      formData.append('preserve_dynamics', options.preserveDynamics ? 'true' : 'false');
+    }
+    if (options.targetLoudnessLufs !== undefined) {
+      formData.append('target_loudness_lufs', options.targetLoudnessLufs.toString());
+    }
+    
+    return apiClient.postForm('/hybrid-ai/predict-parameters', formData);
+  },
+
+  /**
+   * Process audio using hybrid AI mastering
+   */
+  async processHybrid(file: File, options: {
+    modelPreference?: string;
+    userStyle?: string;
+    processingMode?: string;
+    intensityLevel?: string;
+    preserveDynamics?: boolean;
+    targetLoudnessLufs?: number;
+    referenceFileId?: string;
+  } = {}): Promise<APIResponse<{
+    success: boolean;
+    job_id: string;
+    processing_mode: string;
+    model_used: string;
+    estimated_completion_time: number;
+    audio_characteristics: any;
+    predicted_parameters: any;
+    processing_metadata: any;
+  }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (options.modelPreference) {
+      formData.append('model_preference', options.modelPreference);
+    }
+    if (options.userStyle) {
+      formData.append('user_style', options.userStyle);
+    }
+    if (options.processingMode) {
+      formData.append('processing_mode', options.processingMode);
+    }
+    if (options.intensityLevel) {
+      formData.append('intensity_level', options.intensityLevel);
+    }
+    if (options.preserveDynamics !== undefined) {
+      formData.append('preserve_dynamics', options.preserveDynamics ? 'true' : 'false');
+    }
+    if (options.targetLoudnessLufs !== undefined) {
+      formData.append('target_loudness_lufs', options.targetLoudnessLufs.toString());
+    }
+    if (options.referenceFileId) {
+      formData.append('reference_file_id', options.referenceFileId);
+    }
+    
+    return apiClient.postForm('/hybrid-ai/process-hybrid', formData);
+  },
+
+  /**
+   * Get model performance metrics
+   */
+  async getModelPerformance(): Promise<APIResponse<{
+    model_stats: Record<string, any>;
+    system_stats: any;
+    cache_stats: any;
+    recommendations: string[];
+  }>> {
+    return apiClient.get('/hybrid-ai/model-performance');
   },
 };
 
@@ -261,5 +427,6 @@ export { apiClient };
 export default {
   audio: audioAPI,
   processing: processingAPI,
+  hybridAI: hybridAI,
   client: apiClient
 };

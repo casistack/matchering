@@ -11,7 +11,7 @@ import useProcessingJob from '@/hooks/useProcessingJob';
 import type { ProcessingMode, ProcessingSettings, AudioTrack } from '@/types';
 
 const AutoMaster = (): JSX.Element => {
-  const [processingMode] = useState<ProcessingMode>('auto');
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('auto');
   const [processingSettings, setProcessingSettings] = useState<ProcessingSettings>({
     intensity: 'medium',
     eqStyle: 'balanced',
@@ -22,6 +22,7 @@ const AutoMaster = (): JSX.Element => {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   const audioUpload = useAudioUpload({
     maxFileSize: 100 * 1024 * 1024, // 100MB
@@ -78,6 +79,7 @@ const AutoMaster = (): JSX.Element => {
         };
         setCurrentTrack(track);
         setUploadedFileId(response.fileId);
+        setUploadedFile(file); // Store the file for hybrid processing
         
         // Track will be loaded by WaveformVisualization component
         console.log('AutoMaster: Track created for WaveformVisualization:', track);
@@ -86,18 +88,22 @@ const AutoMaster = (): JSX.Element => {
   }, [audioUpload, currentTrack]);
 
   const handleStartProcessing = useCallback(async (): Promise<void> => {
-    if (!uploadedFileId) {
+    if (!uploadedFileId && !uploadedFile) {
       console.error('No file uploaded yet');
       return;
     }
 
     try {
       console.log('Starting processing with settings:', processingSettings);
-      await processingJob.startJob(uploadedFileId, processingMode, processingSettings);
+      console.log('Processing mode:', processingMode);
+      
+      // Use file for hybrid mode, fileId for other modes
+      const fileInput = processingMode === 'hybrid' ? uploadedFile! : uploadedFileId!;
+      await processingJob.startJob(fileInput, processingMode, processingSettings);
     } catch (error) {
       console.error('Failed to start processing:', error);
     }
-  }, [uploadedFileId, processingMode, processingSettings, processingJob]);
+  }, [uploadedFileId, uploadedFile, processingMode, processingSettings, processingJob]);
 
   const handleStopProcessing = useCallback(async (): Promise<void> => {
     try {
@@ -149,11 +155,11 @@ const AutoMaster = (): JSX.Element => {
     <Container maxWidth="lg">
       <Box sx={{ py: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          AI Auto-Mastering
+          AI-Powered Mastering
         </Typography>
         <Typography variant="body1" color="text.secondary" paragraph>
-          Upload your audio file and let our AI automatically master it to professional standards.
-          No reference track needed - our AI analyzes your music and applies optimal processing.
+          Upload your audio file and choose your processing mode: AI Auto-Mastering, Reference-Based, or Hybrid AI approach.
+          Our advanced AI analyzes your music and applies optimal processing for professional results.
         </Typography>
 
         <Grid container spacing={4}>
@@ -229,12 +235,12 @@ const AutoMaster = (): JSX.Element => {
                 <ProcessingControls
                   mode={processingMode}
                   settings={processingSettings}
-                  onModeChange={() => {}} // Auto mode is fixed
+                  onModeChange={setProcessingMode}
                   onSettingsChange={setProcessingSettings}
                   onStartProcessing={handleStartProcessing}
                   onStopProcessing={handleStopProcessing}
                   isProcessing={processingJob.state.isProcessing}
-                  disabled={audioUpload.isUploading || !uploadedFileId}
+                  disabled={audioUpload.isUploading || (!uploadedFileId && !uploadedFile)}
                 />
 
                 {/* Processing Progress */}
