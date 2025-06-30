@@ -227,7 +227,19 @@ def install_dependencies(platform_info):
     print(f"\n📦 Installing dependencies for {platform_info['system']} with {'GPU' if platform_info['has_cuda'] else 'CPU'} support")
     print("=" * 50)
     
-    # Step 1: Install core dependencies first
+    # Step 1: Use platform-specific pyproject.toml
+    pyproject_file = "pyproject.toml"  # Default
+    if platform_info["system"] == "Darwin":
+        # Use Mac-specific pyproject.toml for CPU-only dependencies
+        pyproject_file = "pyproject-mac.toml"
+        print(f"🍎 Using Mac-specific dependencies: {pyproject_file}")
+        
+        # Temporarily backup original and use Mac version
+        if Path("pyproject-mac.toml").exists():
+            subprocess.run(["cp", "pyproject.toml", "pyproject-linux.toml.bak"], check=False)
+            subprocess.run(["cp", "pyproject-mac.toml", "pyproject.toml"], check=True)
+    
+    # Step 2: Install core dependencies
     print("🔧 Installing core dependencies...")
     try:
         result = subprocess.run(
@@ -240,6 +252,10 @@ def install_dependencies(platform_info):
         print("✅ Core dependencies installed!")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print(f"❌ Core dependencies failed: {e}")
+        
+        # Restore original pyproject.toml if we backed it up
+        if platform_info["system"] == "Darwin" and Path("pyproject-linux.toml.bak").exists():
+            subprocess.run(["cp", "pyproject-linux.toml.bak", "pyproject.toml"], check=False)
         return False
     
     # Step 2: Install PyTorch with correct CUDA version
@@ -268,7 +284,13 @@ def install_dependencies(platform_info):
     except subprocess.CalledProcessError as e:
         print(f"⚠️  Some ML libraries failed to install: {e}")
     
-    # Step 4: Test imports
+    # Step 4: Restore original pyproject.toml if needed
+    if platform_info["system"] == "Darwin" and Path("pyproject-linux.toml.bak").exists():
+        print("🔄 Restoring original pyproject.toml...")
+        subprocess.run(["cp", "pyproject-linux.toml.bak", "pyproject.toml"], check=False)
+        subprocess.run(["rm", "pyproject-linux.toml.bak"], check=False)
+    
+    # Step 5: Test imports
     print("\n🧪 Testing imports...")
     return test_imports()
 
