@@ -6,7 +6,7 @@ Aggregates all API endpoints with proper versioning and organization.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import ai, audio, processing, results
+from app.api.v1.endpoints import ai, audio, processing, results, hybrid_ai
 
 # Create main API router
 api_router = APIRouter()
@@ -34,4 +34,10 @@ api_router.include_router(
     results.router,
     prefix="/results",
     tags=["results"],
+)
+
+api_router.include_router(
+    hybrid_ai.router,
+    prefix="/hybrid-ai",
+    tags=["hybrid-ai"],
 )
