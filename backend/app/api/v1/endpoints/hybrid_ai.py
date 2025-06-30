@@ -12,6 +12,7 @@ import time
 from typing import Dict, List, Optional
 from pathlib import Path
 
+import torch
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,10 +33,36 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hybrid-ai", tags=["Hybrid AI Mastering"])
 
-# Global hybrid extractor and model instances
+# Global production instances
+production_model_manager = None
 hybrid_extractor = None
 mastering_models = {}
 model_selector = None
+
+
+def get_production_model_manager():
+    """Get or create the production model manager instance."""
+    global production_model_manager
+    if production_model_manager is None:
+        try:
+            from app.ai.production_model_manager import ProductionModelManager
+            from app.ai.deployment_config import get_deployment_config
+            
+            config = get_deployment_config()
+            device = "cuda" if config.gpu.enabled and torch.cuda.is_available() else "cpu"
+            
+            production_model_manager = ProductionModelManager(
+                device=device,
+                cache_dir=config.cache.cache_dir,
+                max_gpu_memory_gb=config.gpu.memory_limit_gb,
+                enable_feature_caching=config.cache.enabled
+            )
+            logger.info("Production model manager initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize production model manager: {e}")
+            production_model_manager = None
+    
+    return production_model_manager
 
 
 class HybridMasteringRequest(BaseModel):
