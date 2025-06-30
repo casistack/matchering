@@ -55,6 +55,11 @@ dependencies = [
     "accelerate>=1.0.1",
     "scikit-learn>=1.7.0",
     "audioflux>=0.1.9",
+    "uvicorn>=0.33.0",
+    "websocket>=0.2.1",
+    "websockets>=13.1",
+    "fastapi>=0.115.14",
+    "sqlalchemy[postgresql]>=2.0.41",
 ]
 
 [project.optional-dependencies]
