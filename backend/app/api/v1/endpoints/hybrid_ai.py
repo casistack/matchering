@@ -27,6 +27,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status,
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Enterprise logging
+from app.utils.enterprise_logger import (
+    enterprise_logger, 
+    log_user_settings, 
+    log_ai_prediction,
+    log_matchering_config,
+    log_quality_metrics,
+    log_performance,
+    log_error,
+    log_user_action
+)
+
 # Type-only imports
 if TYPE_CHECKING:
     from matchering import Config
@@ -536,30 +548,65 @@ async def process_hybrid_mastering(
     """
     start_time = time.time()
     
+    # Setup request context for enterprise logging
+    request_data = {
+        "endpoint": "/api/v1/hybrid-ai/process-hybrid",
+        "method": "POST",
+        "client_ip": http_request.client.host if http_request.client else "unknown",
+        "user_agent": http_request.headers.get("user-agent", "unknown")
+    }
+    
     try:
-        # Basic file validation
-        if not file.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No file provided"
+        with enterprise_logger.request_context(request_data) as req_ctx:
+            # Log user settings immediately
+            user_settings = request.dict()
+            log_user_settings(user_settings, "frontend_request")
+            log_user_action("hybrid_processing_requested", {
+                "filename": file.filename,
+                "file_size": file.size,
+                "settings": user_settings
+            })
+            
+            # Basic file validation
+            if not file.filename:
+                log_error("No file provided", error_type="validation_error")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No file provided"
+                )
+            
+            # Check file extension
+            allowed_extensions = ['.wav', '.mp3', '.flac', '.aiff', '.aif']
+            file_extension = Path(file.filename).suffix.lower()
+            if file_extension not in allowed_extensions:
+                log_error(f"Invalid file format: {file_extension}", 
+                         error_type="validation_error",
+                         context={"allowed_extensions": allowed_extensions})
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid audio file format. Supported: {', '.join(allowed_extensions)}"
+                )
+            
+            # Save uploaded file  
+            temp_dir = Path("temp") / "hybrid_ai"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
+            
+            # Generate job ID
+            job_id = str(uuid.uuid4())
+            
+            # Log audio upload with full metadata
+            enterprise_logger.log_audio_upload(
+                filename=file.filename,
+                file_size=file.size or 0,
+                mime_type=file.content_type or "unknown",
+                checksum=checksum,
+                audio_metadata={
+                    "file_extension": file_extension,
+                    "temp_path": str(temp_file_path),
+                    "job_id": job_id
+                }
             )
-        
-        # Check file extension
-        allowed_extensions = ['.wav', '.mp3', '.flac', '.aiff', '.aif']
-        file_extension = Path(file.filename).suffix.lower()
-        if file_extension not in allowed_extensions:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid audio file format. Supported: {', '.join(allowed_extensions)}"
-            )
-        
-        # Save uploaded file  
-        temp_dir = Path("temp") / "hybrid_ai"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
-        
-        # Generate job ID
-        job_id = str(uuid.uuid4())
         
         # Queue background processing (do ALL heavy work in background)
         # Add original filename to request params for proper output naming
@@ -880,102 +927,132 @@ async def _process_audio_background(
     that was moved out of the main request handler.
     """
     try:
-        logger.info(f"Starting background hybrid AI processing for job {job_id}")
+        # Setup processing context for comprehensive logging
+        audio_filename = Path(audio_path).name
         
-        # Step 1: Create a temporary UploadFile-like object from the saved file
-        from fastapi import UploadFile
-        
-        # Read the saved file
-        async with aiofiles.open(audio_path, 'rb') as f:
-            file_content = await f.read()
-        
-        # Create a BytesIO object to simulate an UploadFile
-        file_like = io.BytesIO(file_content)
-        
-        # Create a mock request for the prediction function
-        class MockRequest:
-            def __init__(self):
-                self.app = type('MockApp', (), {})()
-                self.app.state = type('MockState', (), {})()
-                self.app.state.model_manager = None  # Will use global fallback
-        
-        mock_request = MockRequest()
-        
-        # Create HybridMasteringRequest from params
-        mastering_request = HybridMasteringRequest(**request_params)
-        
-        # Step 2: Extract features and predict parameters (this is the heavy part)
-        logger.info(f"Extracting features for job {job_id}")
-        
-        # Create a mock UploadFile for the prediction function
-        class MockUploadFile:
-            def __init__(self, content: bytes, filename: str):
-                self._content = io.BytesIO(content)
-                self.filename = filename
-                self.size = len(content)
+        with enterprise_logger.processing_context(
+            job_id=job_id,
+            audio_file=audio_filename,
+            processing_mode=request_params.get('processing_mode', 'hybrid'),
+            user_settings=request_params
+        ) as proc_ctx:
             
-            async def read(self, size: int = -1) -> bytes:
-                if size == -1:
-                    return self._content.getvalue()
-                else:
-                    return self._content.read(size)
+            logger.info(f"Starting background hybrid AI processing for job {job_id}")
+            log_performance("background_processing_start", 0, "timestamp")
             
-            async def seek(self, position: int) -> None:
-                self._content.seek(position)
-        
-        mock_file = MockUploadFile(file_content, Path(audio_path).name)
-        
-        # Do the actual feature extraction and parameter prediction
-        prediction_response = await predict_mastering_parameters(
-            mock_request, mock_file, mastering_request
-        )
-        
-        logger.info(f"Feature extraction completed for job {job_id}")
-        
-        # Step 3: Apply actual AI-guided Matchering processing
-        logger.info(f"Starting AI-guided audio mastering for job {job_id}")
-        
-        try:
-            # Get prediction parameters from previous step
+            # Step 1: Create a temporary UploadFile-like object from the saved file
+            from fastapi import UploadFile
+            
+            # Read the saved file
+            file_read_start = time.time()
+            async with aiofiles.open(audio_path, 'rb') as f:
+                file_content = await f.read()
+            file_read_time = (time.time() - file_read_start) * 1000
+            log_performance("file_read_time", file_read_time, "ms", {"file_size": len(file_content)})
+            
+            # Create a BytesIO object to simulate an UploadFile
+            file_like = io.BytesIO(file_content)
+            
+            # Create a mock request for the prediction function
+            class MockRequest:
+                def __init__(self):
+                    self.app = type('MockApp', (), {})()
+                    self.app.state = type('MockState', (), {})()
+                    self.app.state.model_manager = None  # Will use global fallback
+            
+            mock_request = MockRequest()
+            
+            # Create HybridMasteringRequest from params
+            mastering_request = HybridMasteringRequest(**request_params)
+            
+            # Log the final user settings that will be processed
+            log_user_settings(request_params, "background_processing")
+            
+            # Step 2: Extract features and predict parameters (this is the heavy part)
+            logger.info(f"Extracting features for job {job_id}")
+            
+            # Create a mock UploadFile for the prediction function
+            class MockUploadFile:
+                def __init__(self, content: bytes, filename: str):
+                    self._content = io.BytesIO(content)
+                    self.filename = filename
+                    self.size = len(content)
+                
+                async def read(self, size: int = -1) -> bytes:
+                    if size == -1:
+                        return self._content.getvalue()
+                    else:
+                        return self._content.read(size)
+                
+                async def seek(self, position: int) -> None:
+                    self._content.seek(position)
+            
+            mock_file = MockUploadFile(file_content, Path(audio_path).name)
+            
+            # Do the actual feature extraction and parameter prediction
+            prediction_start = time.time()
+            prediction_response = await predict_mastering_parameters(
+                mock_request, mock_file, mastering_request
+            )
+            prediction_time = (time.time() - prediction_start) * 1000
+            log_performance("ai_prediction_time", prediction_time, "ms")
+            
+            logger.info(f"Feature extraction completed for job {job_id}")
+            
+            # Log AI prediction results
             predicted_params = prediction_response.get('predicted_parameters', {})
-            logger.info(f"Using AI predicted parameters: {predicted_params}")
+            audio_characteristics = prediction_response.get('audio_characteristics', {})
+            model_used = prediction_response.get('model_used', 'unknown')
+            model_confidence = prediction_response.get('model_confidence', 0.0)
             
-            # Apply actual Matchering processing with AI parameters
-            processed_audio_path = await _apply_ai_guided_mastering(
-                audio_path, 
-                predicted_params, 
-                mastering_request,
-                job_id
+            log_ai_prediction(
+                model_used=model_used,
+                predicted_parameters=predicted_params,
+                confidence=model_confidence,
+                audio_characteristics=audio_characteristics
             )
             
-            if processed_audio_path and Path(processed_audio_path).exists():
-                logger.info(f"Processed file created at: {processed_audio_path}")
-                logger.info(f"Processed file size: {Path(processed_audio_path).stat().st_size} bytes")
+            # Step 3: Apply actual AI-guided Matchering processing
+            logger.info(f"Starting AI-guided audio mastering for job {job_id}")
+            logger.info(f"Using AI predicted parameters: {predicted_params}")
+            
+            try:
+                # Apply actual Matchering processing with AI parameters
+                processed_audio_path = await _apply_ai_guided_mastering(
+                    audio_path, 
+                    predicted_params, 
+                    mastering_request,
+                    job_id
+                )
                 
-                # Move to results directory with proper naming
-                results_dir = Path("results")
-                results_dir.mkdir(exist_ok=True)
-                
-                # Extract original filename properly 
-                original_filename = request_params.get('original_filename', 'processed_audio.wav')
-                original_name = Path(original_filename).stem
-                output_filename = f"{original_name}_mastered.wav"
-                final_output_path = results_dir / output_filename
-                
-                # Copy processed file to results with proper name
-                shutil.copy2(processed_audio_path, final_output_path)
-                
-                logger.info(f"Mastered audio saved: {final_output_path}")
-                logger.info(f"Final output file size: {final_output_path.stat().st_size} bytes")
-                
-                # TODO: Store the result path in database for proper job-to-file mapping
-                # For now, we rely on file timestamps in results endpoint
-            else:
-                logger.error(f"Failed to process audio for job {job_id}")
-                
-        except Exception as processing_error:
-            logger.error(f"Audio processing failed for job {job_id}: {processing_error}")
-            logger.error(f"Processing traceback: {traceback.format_exc()}")
+                if processed_audio_path and Path(processed_audio_path).exists():
+                    logger.info(f"Processed file created at: {processed_audio_path}")
+                    logger.info(f"Processed file size: {Path(processed_audio_path).stat().st_size} bytes")
+                    
+                    # Move to results directory with proper naming
+                    results_dir = Path("results")
+                    results_dir.mkdir(exist_ok=True)
+                    
+                    # Extract original filename properly 
+                    original_filename = request_params.get('original_filename', 'processed_audio.wav')
+                    original_name = Path(original_filename).stem
+                    output_filename = f"{original_name}_mastered.wav"
+                    final_output_path = results_dir / output_filename
+                    
+                    # Copy processed file to results with proper name
+                    shutil.copy2(processed_audio_path, final_output_path)
+                    
+                    logger.info(f"Mastered audio saved: {final_output_path}")
+                    logger.info(f"Final output file size: {final_output_path.stat().st_size} bytes")
+                    
+                    # TODO: Store the result path in database for proper job-to-file mapping
+                    # For now, we rely on file timestamps in results endpoint
+                else:
+                    logger.error(f"Failed to process audio for job {job_id}")
+                    
+            except Exception as processing_error:
+                logger.error(f"Audio processing failed for job {job_id}: {processing_error}")
+                logger.error(f"Processing traceback: {traceback.format_exc()}")
         
         logger.info(f"Background hybrid AI processing completed for job {job_id}")
         
@@ -1319,6 +1396,8 @@ def _create_matchering_config(
 ) -> "Config":
     """Create Matchering configuration based on user settings and AI predictions."""
     try:
+        # Log the Matchering configuration creation with user settings
+        config_start = time.time()
         from matchering import Config
         
         config = Config()
@@ -1363,8 +1442,20 @@ def _create_matchering_config(
             config.limiter_max_amplification_db = max(config.limiter_max_amplification_db * 0.7, 5.0)
             config.loudness_max_peak = min(config.loudness_max_peak * 1.5, -0.5)
         
-        logger.info(f"Created Matchering config: max_peak={config.loudness_max_peak}, "
-                   f"max_amp={config.limiter_max_amplification_db}")
+        # Log comprehensive Matchering configuration
+        config_time = (time.time() - config_start) * 1000
+        config_dict = {
+            "loudness_max_peak": config.loudness_max_peak,
+            "limiter_max_amplification_db": config.limiter_max_amplification_db,
+            "limiter_attack_coefficient": getattr(config, 'limiter_attack_coefficient', None),
+            "preserve_dynamics": mastering_request.preserve_dynamics
+        }
+        
+        log_matchering_config(config_dict, mastering_request.dict())
+        log_performance("matchering_config_creation", config_time, "ms")
+        
+        logger.info(f"Created Matchering config for {target_lufs} LUFS, intensity={intensity}: "
+                   f"max_peak={config.loudness_max_peak}, max_amp={config.limiter_max_amplification_db}")
         
         return config
         

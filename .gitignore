@@ -34,3 +34,4 @@ enhanced_matchering.egg-info/*
 logs/tensorboard/*
 backend/model_cache/*
 sharedlogs.txt
+backend/logs/*

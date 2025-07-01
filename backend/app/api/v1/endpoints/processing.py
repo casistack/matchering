@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
@@ -51,6 +51,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/jobs/debug", response_model=Dict)
+async def debug_processing_job(
+    request: Request,
+    raw_data: Dict = Body(...)
+) -> Dict:
+    """Debug endpoint to see what data frontend is sending."""
+    request_id = generate_request_id()
+    client_ip = get_client_ip(request)
+    
+    logger.info(f"Debug: Raw data received from {client_ip}, Request: {request_id}")
+    logger.info(f"Debug: Raw data content: {json.dumps(raw_data, indent=2)}")
+    
+    return {
+        "success": True,
+        "request_id": request_id,
+        "client_ip": client_ip,
+        "raw_data": raw_data,
+        "message": "Debug data logged successfully"
+    }
+
+
 @router.post("/jobs", response_model=ProcessingJobAPIResponse)
 async def create_processing_job(
     request: Request,
@@ -75,6 +96,9 @@ async def create_processing_job(
     client_ip = get_client_ip(request)
     
     logger.info(f"Creating processing job - Mode: {job_data.processing_mode}, Client: {client_ip}, Request: {request_id}")
+    
+    # Debug: Log the actual job data received
+    logger.info(f"Job data received: {job_data.model_dump()}")
     
     try:
         # Validate input file exists
@@ -171,7 +195,9 @@ async def create_processing_job(
             task = process_audio_reference_master.delay(str(processing_job.id))
             task_id = task.id
         elif job_data.processing_mode == "hybrid":
-            # For now, use auto mastering for hybrid mode
+            # Redirect to hybrid AI endpoint
+            logger.info(f"Redirecting hybrid processing to hybrid AI endpoint for job: {processing_job.id}")
+            # For now, use auto mastering as fallback
             task = process_audio_auto_master.delay(str(processing_job.id))
             task_id = task.id
         
