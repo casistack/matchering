@@ -953,7 +953,6 @@ async def _process_audio_background(
         
         # Clean up temporary files (keep original, clean up intermediate files)
         try:
-            import os
             # Keep the original input file for comparison but clean up any intermediate files
             temp_dir = Path(audio_path).parent
             for temp_file in temp_dir.glob(f"*{job_id}*_temp*"):
