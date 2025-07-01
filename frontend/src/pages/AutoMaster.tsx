@@ -5,6 +5,7 @@ import ProcessingControls from '@/components/audio/ProcessingControls';
 import ProcessingProgress from '@/components/audio/ProcessingProgress';
 import WaveformVisualizationV2 from '@/components/audio/WaveformVisualizationV2';
 import AudioAnalyzer from '@/components/audio/AudioAnalyzer';
+import MasteringComparison from '@/components/audio/MasteringComparison';
 import useAudioUpload from '@/hooks/useAudioUpload';
 // Removed useAudioPlayback to avoid conflict with WaveSurfer.js playback
 import useProcessingJob from '@/hooks/useProcessingJob';
@@ -23,6 +24,7 @@ const AutoMaster = (): JSX.Element => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [processingResult, setProcessingResult] = useState<any | null>(null);
 
   const audioUpload = useAudioUpload({
     maxFileSize: 100 * 1024 * 1024, // 100MB
@@ -45,6 +47,59 @@ const AutoMaster = (): JSX.Element => {
     },
     onJobCompleted: (jobId, outputUrl) => {
       console.log('Processing completed:', jobId, outputUrl);
+      
+      // Create mock processing result for comparison (in production, this would come from the API)
+      if (uploadedFile && outputUrl) {
+        const mockResult = {
+          jobId,
+          originalFile: {
+            name: uploadedFile.name,
+            url: URL.createObjectURL(uploadedFile),
+            metrics: {
+              rms: -18.5,
+              peak: -3.2,
+              lufs: -23.1,
+              truePeak: -2.8,
+              dynamicRange: 12.3,
+              stereoWidth: 85,
+              spectralCentroid: 2800,
+              fileSize: uploadedFile.size,
+              duration: 180.5,
+            },
+          },
+          processedFile: {
+            name: uploadedFile.name.replace(/\.(wav|mp3|flac|aiff)$/i, '_mastered.$1'),
+            url: outputUrl,
+            metrics: {
+              rms: -14.2,
+              peak: -0.1,
+              lufs: -16.0,
+              truePeak: -0.05,
+              dynamicRange: 10.8,
+              stereoWidth: 92,
+              spectralCentroid: 2650,
+              fileSize: uploadedFile.size * 1.1, // Slightly larger
+              duration: 180.5,
+            },
+          },
+          processingSettings: {
+            mode: processingMode,
+            intensity: processingSettings.intensity,
+            eqStyle: processingSettings.eqStyle,
+            targetLoudness: processingSettings.targetLoudness,
+            preserveDynamics: processingSettings.preserveDynamics,
+          },
+          aiPredictions: processingMode === 'hybrid' ? {
+            modelUsed: 'Hybrid AI (AST + Custom)',
+            confidence: 0.87,
+            predictedGenre: 'Pop/Electronic',
+            audioCharacteristics: {},
+          } : undefined,
+          processingTime: 8.4,
+        };
+        
+        setProcessingResult(mockResult);
+      }
     },
     onJobFailed: (jobId, error) => {
       console.error('Processing failed:', jobId, error);
@@ -127,7 +182,30 @@ const AutoMaster = (): JSX.Element => {
 
   const handleRetryProcessing = useCallback((): void => {
     processingJob.reset();
+    setProcessingResult(null);
   }, [processingJob]);
+
+  const handleNewProcessing = useCallback((): void => {
+    // Reset all state for new processing
+    setProcessingResult(null);
+    setUploadedFile(null);
+    setUploadedFileId(null);
+    setCurrentTrack(null);
+    processingJob.reset();
+    audioUpload.clearFiles();
+  }, [processingJob, audioUpload]);
+
+  const handleDownloadComparison = useCallback((fileType: 'original' | 'processed'): void => {
+    if (!processingResult) return;
+    
+    const file = fileType === 'original' ? processingResult.originalFile : processingResult.processedFile;
+    const link = document.createElement('a');
+    link.href = file.url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [processingResult]);
 
   const handleAudioElementReady = useCallback((element: HTMLAudioElement): void => {
     setAudioElement(element);
@@ -294,6 +372,15 @@ const AutoMaster = (): JSX.Element => {
             </Box>
           </Grid>
         </Grid>
+
+        {/* Mastering Results Comparison */}
+        {processingResult && (
+          <MasteringComparison
+            processingResult={processingResult}
+            onDownload={handleDownloadComparison}
+            onNewProcessing={handleNewProcessing}
+          />
+        )}
       </Box>
     </Container>
   );
