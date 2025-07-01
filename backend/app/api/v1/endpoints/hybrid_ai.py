@@ -1178,10 +1178,11 @@ async def _create_virtual_reference(
         return None
 
 
-def _apply_simple_eq(audio: np.ndarray, sr: int, style: str) -> np.ndarray:
+def _apply_simple_eq(audio, sr: int, style: str):
     """Apply simple EQ adjustments to create reference characteristics."""
     try:
         from scipy import signal
+        import numpy as np
         
         # Simple biquad filter implementations
         if style == 'bright':
@@ -1208,9 +1209,11 @@ def _apply_simple_eq(audio: np.ndarray, sr: int, style: str) -> np.ndarray:
         return audio  # Return original if EQ fails
 
 
-def _apply_gentle_compression(audio: np.ndarray) -> np.ndarray:
+def _apply_gentle_compression(audio):
     """Apply gentle compression to maintain dynamics."""
     try:
+        import numpy as np
+        
         # Simple soft limiting
         threshold = 0.8
         ratio = 0.1  # Very gentle
@@ -1230,9 +1233,11 @@ def _apply_gentle_compression(audio: np.ndarray) -> np.ndarray:
         return audio
 
 
-def _apply_moderate_compression(audio: np.ndarray) -> np.ndarray:
+def _apply_moderate_compression(audio):
     """Apply moderate compression for modern loudness."""
     try:
+        import numpy as np
+        
         # Moderate soft limiting
         threshold = 0.7
         ratio = 0.3  # More compression
