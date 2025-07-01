@@ -77,6 +77,7 @@ def get_production_model_manager(request: Request = None):
 class HybridMasteringRequest(BaseModel):
     """Request model for hybrid AI mastering."""
     
+    # AI-specific settings
     model_preference: Optional[str] = Field(
         default="auto",
         description="Preferred model ('auto', 'ast', 'wav2vec', 'clap', 'custom', 'ensemble')"
@@ -85,22 +86,34 @@ class HybridMasteringRequest(BaseModel):
         default=None,
         description="Text description of desired mastering style (for CLAP model)"
     )
+    
+    # Processing settings (matching frontend ProcessingSettings)
     processing_mode: str = Field(
         default="hybrid",
-        description="Processing mode ('ai', 'reference', 'hybrid')"
+        description="Processing mode ('auto', 'reference', 'hybrid', 'advanced')"
     )
     intensity_level: str = Field(
         default="medium",
-        description="Mastering intensity ('low', 'medium', 'high')"
+        description="Mastering intensity ('low', 'medium', 'high')",
+        pattern="^(low|medium|high)$"
+    )
+    eq_style: str = Field(
+        default="balanced",
+        description="EQ style ('bright', 'balanced', 'warm', 'auto')",
+        pattern="^(bright|balanced|warm|auto)$"
     )
     preserve_dynamics: bool = Field(
         default=True,
         description="Whether to preserve dynamic range"
     )
     target_loudness_lufs: float = Field(
-        default=-14.0,
-        description="Target loudness in LUFS (-23 to -6)"
+        default=-16.0,
+        description="Target loudness in LUFS (-23 to -6)",
+        ge=-23.0,
+        le=-6.0
     )
+    
+    # Reference processing
     reference_file_id: Optional[str] = Field(
         default=None,
         description="Reference file ID for reference-based processing"
@@ -1127,7 +1140,7 @@ async def _create_virtual_reference(
         # Apply AI-predicted characteristics to create "ideal" reference
         
         # 1. Target loudness adjustment
-        target_lufs = mastering_request.target_loudness or -16.0
+        target_lufs = mastering_request.target_loudness_lufs or -16.0
         current_rms = np.sqrt(np.mean(audio**2))
         
         # Simple loudness scaling (more sophisticated in production)
@@ -1138,13 +1151,17 @@ async def _create_virtual_reference(
             reference_audio = reference_audio * loudness_scale
         
         # 2. EQ adjustments based on AI predictions
-        eq_style = mastering_request.eq_style or "balanced"
+        eq_style = mastering_request.eq_style
         if eq_style == "bright":
             # Boost high frequencies slightly
             reference_audio = _apply_simple_eq(reference_audio, sr, 'bright')
         elif eq_style == "warm":
             # Boost low-mids slightly
             reference_audio = _apply_simple_eq(reference_audio, sr, 'warm')
+        elif eq_style == "auto":
+            # AI-driven EQ adjustments based on audio characteristics
+            # For now, default to balanced, but could use AI predictions here
+            pass  # Balanced (no additional EQ)
         
         # 3. Dynamic range adjustment
         if mastering_request.preserve_dynamics:
@@ -1286,9 +1303,9 @@ def _create_matchering_config(
             config.limiter_max_amplification_db = 10.0
         
         # Apply target loudness if specified
-        if mastering_request.target_loudness:
+        if mastering_request.target_loudness_lufs:
             # Matchering doesn't directly support LUFS targeting, but we can adjust parameters
-            target_lufs = mastering_request.target_loudness
+            target_lufs = mastering_request.target_loudness_lufs
             if target_lufs > -14:  # Very loud
                 config.loudness_max_peak = -0.1
             elif target_lufs < -20:  # Conservative
@@ -1337,7 +1354,7 @@ async def _apply_basic_loudness_normalization(
             audio = audio[:2]
         
         # Basic loudness normalization
-        target_lufs = mastering_request.target_loudness or -16.0
+        target_lufs = mastering_request.target_loudness_lufs or -16.0
         current_rms = np.sqrt(np.mean(audio**2))
         
         if current_rms > 0:
