@@ -15,7 +15,7 @@ import {
   Chip,
   Divider,
 } from '@mui/material';
-import { PlayArrow, Stop, Settings } from '@mui/icons-material';
+import { PlayArrow, Stop, Settings, Info, Speed, Engineering, Psychology, Science } from '@mui/icons-material';
 import type { 
   ProcessingMode, 
   ProcessingSettings, 
@@ -60,29 +60,123 @@ const ProcessingControls = ({
     [settings, onSettingsChange]
   );
 
+  const getModeDisplayName = (selectedMode: ProcessingMode): string => {
+    switch (selectedMode) {
+      case 'auto':
+        return 'AI Auto-Master';
+      case 'reference':
+        return 'Reference-Based';
+      case 'hybrid':
+        return 'AI + Matchering';
+      case 'advanced':
+        return 'Multi-Model AI';
+      default:
+        return selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1);
+    }
+  };
+
   const getModeDescription = (selectedMode: ProcessingMode): string => {
     switch (selectedMode) {
       case 'auto':
-        return 'AI analyzes your track and automatically applies optimal mastering settings';
+        return 'Fast, intelligent mastering using custom AI models - perfect for quick projects';
       case 'reference':
-        return 'Traditional Matchering - match your track to a reference using advanced DSP';
+        return 'Professional reference matching using proven DSP - requires reference track';
       case 'hybrid':
-        return 'AI suggests reference tracks, then applies traditional Matchering processing';
+        return 'AI creates virtual reference for traditional processing - best of both worlds';
+      case 'advanced':
+        return 'Cutting-edge ensemble AI using multiple pre-trained models - research quality';
       default:
         return '';
     }
   };
 
-  const getModeColor = (selectedMode: ProcessingMode): 'primary' | 'secondary' | 'default' => {
+  const getModeColor = (selectedMode: ProcessingMode): 'primary' | 'secondary' | 'default' | 'success' => {
     switch (selectedMode) {
       case 'auto':
         return 'primary';
       case 'reference':
         return 'secondary';
       case 'hybrid':
+        return 'success';
+      case 'advanced':
         return 'default';
       default:
         return 'default';
+    }
+  };
+
+  const getModeIcon = (selectedMode: ProcessingMode): JSX.Element => {
+    switch (selectedMode) {
+      case 'auto':
+        return <Speed color="primary" />;
+      case 'reference':
+        return <Engineering color="secondary" />;
+      case 'hybrid':
+        return <Psychology color="success" />;
+      case 'advanced':
+        return <Science color="action" />;
+      default:
+        return <Info />;
+    }
+  };
+
+  const getModeEstimatedTime = (selectedMode: ProcessingMode): string => {
+    switch (selectedMode) {
+      case 'auto':
+        return '5-15 seconds';
+      case 'reference':
+        return '30-60 seconds';
+      case 'hybrid':
+        return '45-90 seconds';
+      case 'advanced':
+        return '2-5 minutes';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getModeComplexity = (selectedMode: ProcessingMode): string => {
+    switch (selectedMode) {
+      case 'auto':
+        return 'Beginner';
+      case 'reference':
+        return 'Intermediate';
+      case 'hybrid':
+        return 'Intermediate';
+      case 'advanced':
+        return 'Expert';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getModeQuality = (selectedMode: ProcessingMode): string => {
+    switch (selectedMode) {
+      case 'auto':
+        return 'Good';
+      case 'reference':
+        return 'Professional';
+      case 'hybrid':
+        return 'Excellent';
+      case 'advanced':
+        return 'Research';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getModeTargetUsers = (selectedMode: ProcessingMode): string => {
+    switch (selectedMode) {
+      case 'auto':
+        return 'Content creators, podcasters, quick projects';
+      case 'reference':
+        return 'Audio engineers, professionals, traditional workflow';
+      case 'hybrid':
+        return 'Professionals, AI-assisted workflow, best of both worlds';
+      case 'advanced':
+        return 'Researchers, audiophiles, cutting-edge production';
+      default:
+        return 'General users';
     }
   };
 
@@ -100,21 +194,60 @@ const ProcessingControls = ({
             Processing Mode
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-            {(['auto', 'reference', 'hybrid'] as const).map((modeOption) => (
+            {(['auto', 'reference', 'hybrid', 'advanced'] as const).map((modeOption) => (
               <Chip
                 key={modeOption}
-                label={modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
+                label={getModeDisplayName(modeOption)}
                 variant={mode === modeOption ? 'filled' : 'outlined'}
                 color={mode === modeOption ? getModeColor(modeOption) : 'default'}
                 onClick={() => onModeChange(modeOption)}
                 disabled={disabled}
-                sx={{ textTransform: 'capitalize' }}
+                sx={{ 
+                  textTransform: 'capitalize',
+                  minWidth: '120px',
+                  position: 'relative'
+                }}
               />
             ))}
           </Box>
           <Typography variant="caption" color="text.secondary">
             {getModeDescription(mode)}
           </Typography>
+          
+          {/* Mode Information Panel */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              {getModeIcon(mode)}
+              <Typography variant="subtitle2" color="text.primary">
+                {getModeDisplayName(mode)} Details
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1 }}>
+              <Chip 
+                size="small" 
+                label={`${getModeEstimatedTime(mode)}`} 
+                variant="outlined" 
+                color="primary" 
+              />
+              <Chip 
+                size="small" 
+                label={`${getModeComplexity(mode)} level`} 
+                variant="outlined" 
+                color="secondary" 
+              />
+              <Chip 
+                size="small" 
+                label={`${getModeQuality(mode)} quality`} 
+                variant="outlined" 
+                color="success" 
+              />
+            </Box>
+            
+            <Typography variant="caption" color="text.secondary">
+              Best for: {getModeTargetUsers(mode)}
+            </Typography>
+          </Box>
         </Box>
 
         <Divider sx={{ mb: 3 }} />

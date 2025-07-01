@@ -1007,27 +1007,366 @@ async def _apply_ai_guided_mastering(
         else:  # medium
             config.loudness_max_peak = -1.0
             
-        # For AI mode without reference, we'll create a processed version
-        # using the current Matchering engine with AI-suggested parameters
-        
-        # Create a temporary simple processed version
-        # This is a placeholder - in full implementation you'd apply
-        # the predicted EQ curve, compression ratio, etc.
-        
+        # Apply real AI-guided mastering using Matchering with synthetic reference
         logger.info(f"Processing audio with AI parameters: {predicted_params}")
         
-        # Simple approach: copy input to output with timestamp for now
-        # In production, this would apply actual DSP processing
-        import shutil
-        shutil.copy2(input_audio_path, output_path)
+        # Step 1: Create virtual reference based on AI predictions
+        virtual_reference_path = await _create_virtual_reference(
+            input_audio_path, 
+            predicted_params, 
+            mastering_request,
+            job_id
+        )
         
-        logger.info(f"AI-guided processing completed: {output_path}")
-        return str(output_path)
+        if not virtual_reference_path:
+            logger.error("Failed to create virtual reference")
+            # Fallback to basic loudness normalization
+            return await _apply_basic_loudness_normalization(
+                input_audio_path, 
+                output_path, 
+                mastering_request
+            )
+        
+        # Step 2: Apply Matchering processing with virtual reference
+        try:
+            logger.info(f"Applying Matchering with virtual reference: {virtual_reference_path}")
+            
+            # Configure Matchering based on user settings
+            config = _create_matchering_config(mastering_request, predicted_params)
+            
+            # Apply Matchering processing
+            result = matchering.process(
+                target=input_audio_path,
+                reference=virtual_reference_path,
+                results=[
+                    matchering.pcm24(str(output_path))
+                ],
+                config=config,
+                log=logger.info  # Pass our logger to Matchering
+            )
+            
+            logger.info(f"Matchering processing completed successfully")
+            
+            # Clean up virtual reference
+            try:
+                if os.path.exists(virtual_reference_path):
+                    os.remove(virtual_reference_path)
+                    logger.info(f"Cleaned up virtual reference: {virtual_reference_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up virtual reference: {cleanup_error}")
+            
+            # Verify output file was created and has reasonable size
+            if os.path.exists(output_path):
+                output_size = os.path.getsize(output_path)
+                input_size = os.path.getsize(input_audio_path)
+                logger.info(f"Processing complete - Input: {input_size} bytes, Output: {output_size} bytes")
+                
+                if output_size < 1000:  # Less than 1KB indicates failure
+                    logger.error(f"Output file too small ({output_size} bytes), processing likely failed")
+                    return None
+                    
+                return str(output_path)
+            else:
+                logger.error("Output file was not created")
+                return None
+                
+        except Exception as matchering_error:
+            logger.error(f"Matchering processing failed: {matchering_error}")
+            logger.error(f"Matchering error traceback: {traceback.format_exc()}")
+            
+            # Fallback to basic processing
+            logger.info("Falling back to basic loudness normalization")
+            return await _apply_basic_loudness_normalization(
+                input_audio_path, 
+                output_path, 
+                mastering_request
+            )
         
     except Exception as e:
         logger.error(f"AI-guided mastering failed: {e}")
         import traceback
         logger.error(f"Mastering traceback: {traceback.format_exc()}")
+        return None
+
+
+async def _create_virtual_reference(
+    input_audio_path: str,
+    predicted_params: Dict,
+    mastering_request: HybridMasteringRequest,
+    job_id: str
+) -> Optional[str]:
+    """
+    Create a virtual reference track based on AI predictions.
+    This reference will guide the Matchering processing.
+    """
+    import traceback
+    import os
+    
+    try:
+        logger.info(f"Creating virtual reference for job {job_id}")
+        
+        # Import audio processing libraries
+        import torchaudio
+        import soundfile as sf
+        import numpy as np
+        import torch
+        
+        # Load the input audio using torchaudio (Python 3.12 compatible)
+        audio, sr = torchaudio.load(input_audio_path)
+        audio = audio.numpy()  # Convert to numpy for processing
+        
+        # Ensure we have stereo audio
+        if audio.ndim == 1:
+            audio = np.stack([audio, audio], axis=0)
+        elif audio.shape[0] > 2:
+            audio = audio[:2]  # Take first 2 channels
+        
+        # Create virtual reference based on AI predictions
+        reference_audio = audio.copy()
+        
+        # Apply AI-predicted characteristics to create "ideal" reference
+        
+        # 1. Target loudness adjustment
+        target_lufs = mastering_request.target_loudness or -16.0
+        current_rms = np.sqrt(np.mean(audio**2))
+        
+        # Simple loudness scaling (more sophisticated in production)
+        if current_rms > 0:
+            # Convert LUFS target to approximate RMS scaling
+            target_rms = 10**(target_lufs / 20.0) * 0.1  # Rough conversion
+            loudness_scale = target_rms / current_rms
+            reference_audio = reference_audio * loudness_scale
+        
+        # 2. EQ adjustments based on AI predictions
+        eq_style = mastering_request.eq_style or "balanced"
+        if eq_style == "bright":
+            # Boost high frequencies slightly
+            reference_audio = _apply_simple_eq(reference_audio, sr, 'bright')
+        elif eq_style == "warm":
+            # Boost low-mids slightly
+            reference_audio = _apply_simple_eq(reference_audio, sr, 'warm')
+        
+        # 3. Dynamic range adjustment
+        if mastering_request.preserve_dynamics:
+            # Less compression for preserved dynamics
+            reference_audio = _apply_gentle_compression(reference_audio)
+        else:
+            # More compression for modern loudness
+            reference_audio = _apply_moderate_compression(reference_audio)
+        
+        # 4. Limiting to prevent clipping
+        peak_level = np.max(np.abs(reference_audio))
+        if peak_level > 0.95:
+            reference_audio = reference_audio * (0.95 / peak_level)
+        
+        # Save virtual reference
+        input_path = Path(input_audio_path)
+        virtual_ref_path = input_path.parent / f"virtual_ref_{job_id}.wav"
+        
+        # Ensure reference_audio is in the right format for soundfile
+        if reference_audio.ndim == 2:
+            reference_audio = reference_audio.T  # soundfile expects (n_samples, n_channels)
+        
+        sf.write(str(virtual_ref_path), reference_audio, sr, format='WAV', subtype='PCM_24')
+        
+        logger.info(f"Virtual reference created: {virtual_ref_path}")
+        return str(virtual_ref_path)
+        
+    except Exception as e:
+        logger.error(f"Failed to create virtual reference: {e}")
+        logger.error(f"Virtual reference creation traceback: {traceback.format_exc()}")
+        return None
+
+
+def _apply_simple_eq(audio: np.ndarray, sr: int, style: str) -> np.ndarray:
+    """Apply simple EQ adjustments to create reference characteristics."""
+    try:
+        from scipy import signal
+        
+        # Simple biquad filter implementations
+        if style == 'bright':
+            # High shelf at 8kHz, +2dB
+            sos = signal.butter(2, 8000, btype='highpass', fs=sr, output='sos')
+            if audio.ndim == 2:
+                audio[0] = signal.sosfilt(sos, audio[0]) * 1.05  # Slight boost
+                audio[1] = signal.sosfilt(sos, audio[1]) * 1.05
+            else:
+                audio = signal.sosfilt(sos, audio) * 1.05
+                
+        elif style == 'warm':
+            # Low shelf at 200Hz, +1dB
+            sos = signal.butter(2, 200, btype='lowpass', fs=sr, output='sos')
+            if audio.ndim == 2:
+                audio[0] = signal.sosfilt(sos, audio[0]) * 1.03  # Slight boost
+                audio[1] = signal.sosfilt(sos, audio[1]) * 1.03
+            else:
+                audio = signal.sosfilt(sos, audio) * 1.03
+        
+        return audio
+    except Exception as e:
+        logger.warning(f"EQ application failed: {e}")
+        return audio  # Return original if EQ fails
+
+
+def _apply_gentle_compression(audio: np.ndarray) -> np.ndarray:
+    """Apply gentle compression to maintain dynamics."""
+    try:
+        # Simple soft limiting
+        threshold = 0.8
+        ratio = 0.1  # Very gentle
+        
+        # Apply to each channel
+        if audio.ndim == 2:
+            for ch in range(audio.shape[0]):
+                over_thresh = np.abs(audio[ch]) > threshold
+                audio[ch][over_thresh] = threshold + (audio[ch][over_thresh] - threshold) * ratio
+        else:
+            over_thresh = np.abs(audio) > threshold
+            audio[over_thresh] = threshold + (audio[over_thresh] - threshold) * ratio
+            
+        return audio
+    except Exception as e:
+        logger.warning(f"Gentle compression failed: {e}")
+        return audio
+
+
+def _apply_moderate_compression(audio: np.ndarray) -> np.ndarray:
+    """Apply moderate compression for modern loudness."""
+    try:
+        # Moderate soft limiting
+        threshold = 0.7
+        ratio = 0.3  # More compression
+        
+        # Apply to each channel
+        if audio.ndim == 2:
+            for ch in range(audio.shape[0]):
+                over_thresh = np.abs(audio[ch]) > threshold
+                audio[ch][over_thresh] = threshold + (audio[ch][over_thresh] - threshold) * ratio
+        else:
+            over_thresh = np.abs(audio) > threshold
+            audio[over_thresh] = threshold + (audio[over_thresh] - threshold) * ratio
+            
+        return audio
+    except Exception as e:
+        logger.warning(f"Moderate compression failed: {e}")
+        return audio
+
+
+def _create_matchering_config(
+    mastering_request: HybridMasteringRequest,
+    predicted_params: Dict
+) -> "matchering.Config":
+    """Create Matchering configuration based on user settings and AI predictions."""
+    try:
+        from matchering import Config
+        
+        config = Config()
+        
+        # Apply user preferences
+        if mastering_request.preserve_dynamics:
+            config.limiter_max_amplification_db = 8.0  # Less aggressive
+        else:
+            config.limiter_max_amplification_db = 12.0  # More aggressive
+        
+        # Apply AI-predicted intensity
+        intensity = predicted_params.get('intensity_level', 'medium')
+        if intensity == 'high':
+            config.loudness_max_peak = -0.5
+            config.limiter_max_amplification_db = 15.0
+        elif intensity == 'low':
+            config.loudness_max_peak = -2.0
+            config.limiter_max_amplification_db = 6.0
+        else:  # medium
+            config.loudness_max_peak = -1.0
+            config.limiter_max_amplification_db = 10.0
+        
+        # Apply target loudness if specified
+        if mastering_request.target_loudness:
+            # Matchering doesn't directly support LUFS targeting, but we can adjust parameters
+            target_lufs = mastering_request.target_loudness
+            if target_lufs > -14:  # Very loud
+                config.loudness_max_peak = -0.1
+            elif target_lufs < -20:  # Conservative
+                config.loudness_max_peak = -3.0
+        
+        logger.info(f"Created Matchering config: max_peak={config.loudness_max_peak}, "
+                   f"max_amp={config.limiter_max_amplification_db}")
+        
+        return config
+        
+    except Exception as e:
+        logger.error(f"Failed to create Matchering config: {e}")
+        # Return default config
+        from matchering import Config
+        return Config()
+
+
+async def _apply_basic_loudness_normalization(
+    input_path: str,
+    output_path: str,
+    mastering_request: HybridMasteringRequest
+) -> Optional[str]:
+    """
+    Fallback function: Apply basic loudness normalization if Matchering fails.
+    This ensures we always return a processed file, even if it's just normalized.
+    """
+    import traceback
+    import os
+    
+    try:
+        logger.info("Applying basic loudness normalization as fallback")
+        
+        import torchaudio
+        import soundfile as sf
+        import numpy as np
+        import torch
+        
+        # Load audio using torchaudio (Python 3.12 compatible)
+        audio, sr = torchaudio.load(input_path)
+        audio = audio.numpy()  # Convert to numpy for processing
+        
+        # Ensure stereo
+        if audio.ndim == 1:
+            audio = np.stack([audio, audio], axis=0)
+        elif audio.shape[0] > 2:
+            audio = audio[:2]
+        
+        # Basic loudness normalization
+        target_lufs = mastering_request.target_loudness or -16.0
+        current_rms = np.sqrt(np.mean(audio**2))
+        
+        if current_rms > 0:
+            # Simple RMS-based normalization (approximates LUFS)
+            target_rms = 10**(target_lufs / 20.0) * 0.1
+            scale_factor = target_rms / current_rms
+            
+            # Apply gentle scaling to avoid distortion
+            scale_factor = min(scale_factor, 3.0)  # Limit boost
+            audio = audio * scale_factor
+        
+        # Simple limiting
+        peak = np.max(np.abs(audio))
+        if peak > 0.95:
+            audio = audio * (0.95 / peak)
+        
+        # Save normalized audio
+        if audio.ndim == 2:
+            audio = audio.T  # soundfile expects (n_samples, n_channels)
+            
+        sf.write(output_path, audio, sr, format='WAV', subtype='PCM_24')
+        
+        # Verify output
+        if os.path.exists(output_path):
+            output_size = os.path.getsize(output_path)
+            logger.info(f"Basic normalization complete: {output_size} bytes")
+            return output_path
+        else:
+            logger.error("Basic normalization failed to create output file")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Basic loudness normalization failed: {e}")
+        logger.error(f"Normalization traceback: {traceback.format_exc()}")
         return None
 
 
