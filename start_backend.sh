@@ -12,5 +12,11 @@ echo "✅ CUDA environment configured for PyTorch 2.5.1+cu124"
 # Change to backend directory
 cd backend
 
-# Start uvicorn with CUDA support
-uv run uvicorn app.main:app --reload --port 8000
+# Load development environment if it exists
+if [ -f ".env.development" ]; then
+    echo "📝 Loading development environment variables..."
+    export $(cat .env.development | grep -v '^#' | xargs)
+fi
+
+# Start uvicorn with CUDA support and network access
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

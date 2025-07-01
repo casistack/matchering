@@ -37,6 +37,13 @@ class Settings(BaseSettings):
         env="MATCHERING_CORS_ORIGINS"
     )
     
+    @validator('ALLOWED_HOSTS', 'CORS_ORIGINS', pre=True)
+    def parse_comma_separated(cls, v):
+        """Parse comma-separated string into list."""
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(',') if item.strip()]
+        return v
+    
     # Database settings
     DATABASE_URL: str = Field(
         default="sqlite+aiosqlite:///./matchering.db",
