@@ -7,15 +7,29 @@ for intelligent audio mastering parameter prediction and processing.
 """
 
 import asyncio
+import io
 import logging
+import os
+import shutil
 import time
-from typing import Dict, List, Optional
+import traceback
+import uuid
+from typing import Dict, List, Optional, TYPE_CHECKING
 from pathlib import Path
 
+import aiofiles
+import numpy as np
+import soundfile as sf
 import torch
+import torchaudio
+from scipy import signal
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Type-only imports
+if TYPE_CHECKING:
+    from matchering import Config
 
 from app.ai.hybrid_feature_extractor import HybridFeatureExtractor, AudioCharacteristics
 from app.ai.mastering_model import MasteringAI, MasteringParameters
@@ -520,15 +534,18 @@ async def process_hybrid_mastering(
         temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
         
         # Generate job ID
-        import uuid
         job_id = str(uuid.uuid4())
         
         # Queue background processing (do ALL heavy work in background)
+        # Add original filename to request params for proper output naming
+        request_params_with_filename = request.dict()
+        request_params_with_filename['original_filename'] = file.filename
+        
         background_tasks.add_task(
             _process_audio_background,
             job_id=job_id,
             audio_path=str(temp_file_path),
-            request_params=request.dict()
+            request_params=request_params_with_filename
         )
         
         # Estimate completion time based on file size and processing mode
@@ -615,7 +632,6 @@ async def process_hybrid_mastering(
         raise
     except Exception as e:
         logger.error(f"Hybrid mastering request failed: {str(e)}")
-        import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         
         # Return error in standardized API response format
@@ -843,14 +859,12 @@ async def _process_audio_background(
         
         # Step 1: Create a temporary UploadFile-like object from the saved file
         from fastapi import UploadFile
-        import aiofiles
         
         # Read the saved file
         async with aiofiles.open(audio_path, 'rb') as f:
             file_content = await f.read()
         
         # Create a BytesIO object to simulate an UploadFile
-        import io
         file_like = io.BytesIO(file_content)
         
         # Create a mock request for the prediction function
@@ -911,15 +925,16 @@ async def _process_audio_background(
             
             if processed_audio_path and Path(processed_audio_path).exists():
                 # Move to results directory with proper naming
-                results_dir = Path("backend/results")
+                results_dir = Path("results")
                 results_dir.mkdir(exist_ok=True)
                 
-                original_name = Path(audio_path).stem
+                # Extract original filename properly 
+                original_filename = request_params.get('original_filename', 'processed_audio.wav')
+                original_name = Path(original_filename).stem
                 output_filename = f"{original_name}_mastered.wav"
                 final_output_path = results_dir / output_filename
                 
                 # Copy processed file to results with proper name
-                import shutil
                 shutil.copy2(processed_audio_path, final_output_path)
                 
                 logger.info(f"Mastered audio saved: {final_output_path}")
@@ -928,7 +943,6 @@ async def _process_audio_background(
                 
         except Exception as processing_error:
             logger.error(f"Audio processing failed for job {job_id}: {processing_error}")
-            import traceback
             logger.error(f"Processing traceback: {traceback.format_exc()}")
         
         logger.info(f"Background hybrid AI processing completed for job {job_id}")
@@ -951,7 +965,6 @@ async def _process_audio_background(
         
     except Exception as e:
         logger.error(f"Background processing failed for job {job_id}: {str(e)}")
-        import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         
         # TODO: Update job status in database to failed
@@ -959,7 +972,6 @@ async def _process_audio_background(
         # For now, just ensure we don't crash the background task
         try:
             # Clean up temporary files
-            import os
             if os.path.exists(audio_path):
                 os.remove(audio_path)
                 logger.info(f"Cleaned up temporary file: {audio_path}")
@@ -995,6 +1007,10 @@ async def _apply_ai_guided_mastering(
         input_path = Path(input_audio_path)
         output_filename = f"{input_path.stem}_mastered_{job_id}.wav"
         output_path = input_path.parent / output_filename
+        
+        # Ensure parent directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output path: {output_path}")
         
         # Import Matchering for actual processing
         try:
@@ -1054,8 +1070,7 @@ async def _apply_ai_guided_mastering(
                 results=[
                     matchering.pcm24(str(output_path))
                 ],
-                config=config,
-                log=logger.info  # Pass our logger to Matchering
+                config=config
             )
             
             logger.info(f"Matchering processing completed successfully")
@@ -1097,7 +1112,6 @@ async def _apply_ai_guided_mastering(
         
     except Exception as e:
         logger.error(f"AI-guided mastering failed: {e}")
-        import traceback
         logger.error(f"Mastering traceback: {traceback.format_exc()}")
         return None
 
@@ -1112,17 +1126,11 @@ async def _create_virtual_reference(
     Create a virtual reference track based on AI predictions.
     This reference will guide the Matchering processing.
     """
-    import traceback
-    import os
     
     try:
         logger.info(f"Creating virtual reference for job {job_id}")
         
-        # Import audio processing libraries
-        import torchaudio
-        import soundfile as sf
-        import numpy as np
-        import torch
+        # Use already imported audio processing libraries
         
         # Load the input audio using torchaudio (Python 3.12 compatible)
         audio, sr = torchaudio.load(input_audio_path)
@@ -1198,8 +1206,6 @@ async def _create_virtual_reference(
 def _apply_simple_eq(audio, sr: int, style: str):
     """Apply simple EQ adjustments to create reference characteristics."""
     try:
-        from scipy import signal
-        import numpy as np
         
         # Simple biquad filter implementations
         if style == 'bright':
@@ -1229,7 +1235,6 @@ def _apply_simple_eq(audio, sr: int, style: str):
 def _apply_gentle_compression(audio):
     """Apply gentle compression to maintain dynamics."""
     try:
-        import numpy as np
         
         # Simple soft limiting
         threshold = 0.8
@@ -1253,7 +1258,6 @@ def _apply_gentle_compression(audio):
 def _apply_moderate_compression(audio):
     """Apply moderate compression for modern loudness."""
     try:
-        import numpy as np
         
         # Moderate soft limiting
         threshold = 0.7
@@ -1277,7 +1281,7 @@ def _apply_moderate_compression(audio):
 def _create_matchering_config(
     mastering_request: HybridMasteringRequest,
     predicted_params: Dict
-) -> "matchering.Config":
+) -> "Config":
     """Create Matchering configuration based on user settings and AI predictions."""
     try:
         from matchering import Config
@@ -1332,16 +1336,9 @@ async def _apply_basic_loudness_normalization(
     Fallback function: Apply basic loudness normalization if Matchering fails.
     This ensures we always return a processed file, even if it's just normalized.
     """
-    import traceback
-    import os
     
     try:
         logger.info("Applying basic loudness normalization as fallback")
-        
-        import torchaudio
-        import soundfile as sf
-        import numpy as np
-        import torch
         
         # Load audio using torchaudio (Python 3.12 compatible)
         audio, sr = torchaudio.load(input_path)
