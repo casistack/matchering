@@ -100,6 +100,19 @@ class APIClient {
       };
 
       console.log(`[API] ${options.method || 'GET'} ${url}`);
+      
+      // Log FormData contents for debugging (without file contents)
+      if (isFormData && options.body instanceof FormData) {
+        const formDataEntries: string[] = [];
+        for (const [key, value] of options.body.entries()) {
+          if (value instanceof File) {
+            formDataEntries.push(`${key}: File(${value.name}, ${value.size} bytes)`);
+          } else {
+            formDataEntries.push(`${key}: ${value}`);
+          }
+        }
+        console.log(`[API] FormData: ${formDataEntries.join(', ')}`);
+      }
 
       const response = await fetch(url, requestOptions);
 
@@ -136,9 +149,11 @@ class APIClient {
         );
       }
 
-      if (!responseData.success && responseData.error) {
+      // Check for API-level errors even with 200 status
+      if (responseData.success === false) {
+        const errorMessage = responseData.error || 'Unknown API error';
         throw new APIClientError(
-          responseData.error,
+          errorMessage,
           response.status,
           'API_ERROR',
           responseData.requestId

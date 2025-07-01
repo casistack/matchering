@@ -177,7 +177,9 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
           referenceFileId,
         };
         
+        console.log('[ProcessingJob] Starting hybrid AI processing with options:', hybridOptions);
         response = await hybridAI.processHybrid(fileIdOrFile, hybridOptions);
+        console.log('[ProcessingJob] Hybrid AI response:', response);
       } else {
         // Use regular processing API for auto and reference modes
         const fileId = typeof fileIdOrFile === 'string' ? fileIdOrFile : '';
@@ -191,8 +193,12 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
         response = await processingAPI.createJob(jobRequest);
       }
 
+      console.log('[ProcessingJob] API Response:', response);
+      
       if (!response.success || !response.data) {
-        throw new Error(response.error || 'Failed to create processing job');
+        const errorMsg = response.error || 'Failed to create processing job';
+        console.error('[ProcessingJob] Job creation failed:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       const jobData = response.data;
@@ -228,9 +234,11 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
       // Connect to WebSocket for progress updates if enabled
       if (options.autoConnectWebSocket !== false) {
         try {
-          await jobProgress.connect(jobData.jobId);
+          console.log(`[ProcessingJob] Connecting to WebSocket for job: ${jobId}`);
+          await jobProgress.connect(jobId);
+          console.log(`[ProcessingJob] WebSocket connected successfully for job: ${jobId}`);
         } catch (wsError) {
-          console.warn('Failed to connect to WebSocket, will poll for updates:', wsError);
+          console.warn('[ProcessingJob] Failed to connect to WebSocket, will poll for updates:', wsError);
         }
       }
 

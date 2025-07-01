@@ -452,7 +452,7 @@ async def predict_mastering_parameters(
 
 @router.post(
     "/process-hybrid",
-    response_model=HybridMasteringResponse,
+    response_model=Dict,
     summary="Process audio using hybrid AI mastering",
     description="Complete hybrid AI mastering pipeline with intelligent model selection and processing."
 )
@@ -569,7 +569,8 @@ async def process_hybrid_mastering(
             confidence=0.5  # Neutral confidence for placeholder
         )
         
-        response = HybridMasteringResponse(
+        # Create the hybrid mastering response
+        hybrid_response = HybridMasteringResponse(
             success=True,
             job_id=job_id,
             processing_mode=request.processing_mode,
@@ -584,14 +585,38 @@ async def process_hybrid_mastering(
             }
         )
         
-        logger.info(f"Hybrid mastering job {job_id} queued successfully in {processing_time:.3f}s")
-        return response
+        # Wrap in standardized API response format
+        api_response = {
+            "success": True,
+            "data": hybrid_response.model_dump(),
+            "error": None,
+            "timestamp": time.time(),
+            "requestId": job_id
+        }
         
+        logger.info(f"Hybrid mastering job {job_id} queued successfully in {processing_time:.3f}s")
+        return api_response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"Hybrid mastering request failed: {str(e)}")
-        raise HTTPException(
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        
+        # Return error in standardized API response format
+        error_response = {
+            "success": False,
+            "data": None,
+            "error": f"Hybrid mastering failed: {str(e)}",
+            "timestamp": time.time(),
+            "requestId": f"error_{int(time.time())}"
+        }
+        
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Hybrid mastering failed: {str(e)}"
+            content=error_response
         )
 
 
@@ -717,18 +742,36 @@ async def get_available_models() -> Dict:
             }
         }
         
-        return {
-            "models": models_info,
-            "total_available": sum(1 for info in models_info.values() if info["available"]),
-            "recommended_default": "auto",
-            "selection_strategy": "content_aware"
+        # Wrap in standardized API response format
+        api_response = {
+            "success": True,
+            "data": {
+                "models": models_info,
+                "total_available": sum(1 for info in models_info.values() if info["available"]),
+                "recommended_default": "auto",
+                "selection_strategy": "content_aware"
+            },
+            "error": None,
+            "timestamp": time.time(),
+            "requestId": f"models_{int(time.time())}"
         }
+        return api_response
         
     except Exception as e:
         logger.error(f"Failed to get available models: {str(e)}")
-        raise HTTPException(
+        
+        # Return error in standardized API response format
+        error_response = {
+            "success": False,
+            "data": None,
+            "error": f"Model information unavailable: {str(e)}",
+            "timestamp": time.time(),
+            "requestId": f"models_error_{int(time.time())}"
+        }
+        
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Model information unavailable: {str(e)}"
+            content=error_response
         )
 
 
@@ -844,10 +887,35 @@ async def _process_audio_background(
         
         logger.info(f"Background hybrid AI processing completed for job {job_id}")
         
+        # TODO: Update job status in database to completed
+        # TODO: Send completion notification via WebSocket
+        # TODO: Store processed audio file and metadata
+        
+        # Clean up temporary files
+        try:
+            import os
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+                logger.info(f"Cleaned up temporary file: {audio_path}")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to clean up temporary file: {cleanup_error}")
+        
     except Exception as e:
         logger.error(f"Background processing failed for job {job_id}: {str(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
+        
+        # TODO: Update job status in database to failed
+        # TODO: Send failure notification via WebSocket
+        # For now, just ensure we don't crash the background task
+        try:
+            # Clean up temporary files
+            import os
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+                logger.info(f"Cleaned up temporary file: {audio_path}")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to clean up temporary file: {cleanup_error}")
 
 
 def _estimate_processing_time(
