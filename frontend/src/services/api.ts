@@ -17,7 +17,7 @@ import type {
 const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   API_VERSION: 'v1',
-  TIMEOUT: 30000, // 30 seconds
+  TIMEOUT: 120000, // 120 seconds for large file uploads
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second
 } as const;
@@ -86,17 +86,21 @@ class APIClient {
   ): Promise<APIResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+    
     try {
       // For FormData, don't include default Content-Type header
       const isFormData = options.body instanceof FormData;
       const headers = isFormData 
         ? { ...options.headers }
         : { ...this.defaultHeaders, ...options.headers };
-
+      
       const requestOptions: RequestInit = {
         ...options,
         headers,
-        signal: options.signal || AbortSignal.timeout(API_CONFIG.TIMEOUT),
+        signal: options.signal || controller.signal,
       };
 
       console.log(`[API] ${options.method || 'GET'} ${url}`);
@@ -115,6 +119,13 @@ class APIClient {
       }
 
       const response = await fetch(url, requestOptions);
+      
+      // Clear the timeout
+      clearTimeout(timeoutId);
+      
+      // Debug log the response
+      console.log(`[API] Response status: ${response.status}, ok: ${response.ok}`);
+      console.log(`[API] Response headers:`, Object.fromEntries(response.headers.entries()));
 
       // Handle non-JSON responses (like file downloads)
       const contentType = response.headers.get('Content-Type') || '';
@@ -163,6 +174,9 @@ class APIClient {
       return responseData;
 
     } catch (error) {
+      // Clear the timeout on error
+      clearTimeout(timeoutId);
+      
       console.error(`[API] Error ${options.method || 'GET'} ${url}:`, error);
 
       // Handle network errors

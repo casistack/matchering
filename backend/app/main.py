@@ -138,6 +138,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 
@@ -201,6 +203,16 @@ async def health_check() -> dict[str, str]:
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Debug endpoint to check CORS configuration
+@app.get("/debug/cors")
+async def debug_cors():
+    """Debug endpoint to check CORS configuration."""
+    return {
+        "cors_origins": settings.CORS_ORIGINS,
+        "allowed_hosts": settings.ALLOWED_HOSTS,
+        "debug": settings.DEBUG
+    }
 
 
 if __name__ == "__main__":

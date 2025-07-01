@@ -5,11 +5,24 @@ Handles environment-specific settings with proper type safety and validation.
 Based on the architecture specifications in docs/architecture/enhanced-matchering-architecture.md
 """
 
-from pydantic import Field, validator
+from pydantic import Field, field_validator, validator
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env.development file if it exists
+env_file = Path(__file__).parent.parent.parent / ".env.development"
+if env_file.exists():
+    load_dotenv(env_file, override=True)
+    print(f"✅ Loaded environment from {env_file}")
+    # Debug: Print loaded CORS origins
+    cors_from_env = os.getenv("MATCHERING_CORS_ORIGINS")
+    if cors_from_env:
+        print(f"📋 Loaded CORS_ORIGINS from env: {cors_from_env[:50]}...")
+else:
+    print(f"ℹ️  No .env.development file found at {env_file}")
 
 
 class Settings(BaseSettings):
@@ -27,7 +40,7 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000, env="MATCHERING_PORT")
     
     # Security settings
-    SECRET_KEY: str = Field(default="", description="Security secret key")
+    SECRET_KEY: str = Field(default="dev-secret-key-change-in-production", description="Security secret key")
     ALLOWED_HOSTS: List[str] = Field(
         default=["localhost", "127.0.0.1"],
         env="MATCHERING_ALLOWED_HOSTS"
@@ -37,12 +50,6 @@ class Settings(BaseSettings):
         env="MATCHERING_CORS_ORIGINS"
     )
     
-    @validator('ALLOWED_HOSTS', 'CORS_ORIGINS', pre=True)
-    def parse_comma_separated(cls, v):
-        """Parse comma-separated string into list."""
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(',') if item.strip()]
-        return v
     
     # Database settings
     DATABASE_URL: str = Field(
@@ -129,15 +136,18 @@ class Settings(BaseSettings):
         """Ensure audio formats start with dot."""
         return [fmt if fmt.startswith('.') else f'.{fmt}' for fmt in v]
     
-    @validator("CORS_ORIGINS", "ALLOWED_HOSTS")
+    @field_validator("CORS_ORIGINS", "ALLOWED_HOSTS", mode="before")
+    @classmethod
     def parse_comma_separated(cls, v) -> List[str]:
         """Parse comma-separated environment variables."""
         if isinstance(v, str):
-            return [item.strip() for item in v.split(',') if item.strip()]
+            result = [item.strip() for item in v.split(',') if item.strip()]
+            print(f"🔍 Parsed comma-separated value: {v[:50]}... -> {len(result)} items")
+            return result
         return v
     
     model_config = {
-        "env_file": ".env",
+        "env_file": ".env.development",
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
         "extra": "ignore"
@@ -153,6 +163,32 @@ class DevelopmentSettings(Settings):
     
     # Use SQLite for development
     DATABASE_URL: str = "sqlite+aiosqlite:///./dev_matchering.db"
+    
+    def __init__(self, **data):
+        """Override to load environment variables directly."""
+        # Load CORS_ORIGINS from environment if available
+        cors_env = os.getenv("MATCHERING_CORS_ORIGINS")
+        if cors_env:
+            data["CORS_ORIGINS"] = [item.strip() for item in cors_env.split(',') if item.strip()]
+            print(f"✅ Loaded CORS_ORIGINS from environment: {len(data['CORS_ORIGINS'])} origins")
+        
+        # Load ALLOWED_HOSTS from environment if available
+        hosts_env = os.getenv("MATCHERING_ALLOWED_HOSTS")
+        if hosts_env:
+            data["ALLOWED_HOSTS"] = [item.strip() for item in hosts_env.split(',') if item.strip()]
+            print(f"✅ Loaded ALLOWED_HOSTS from environment: {len(data['ALLOWED_HOSTS'])} hosts")
+            
+        super().__init__(**data)
+        
+        # TODO: Refactor to use proper pydantic-settings with field_validator once working
+        # This manual approach works but pydantic-settings would be more enterprise-grade
+    
+    model_config = {
+        "env_file": ".env.development",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True,
+        "extra": "ignore"
+    }
 
 
 class ProductionSettings(Settings):

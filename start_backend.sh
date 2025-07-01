@@ -15,7 +15,13 @@ cd backend
 # Load development environment if it exists
 if [ -f ".env.development" ]; then
     echo "📝 Loading development environment variables..."
-    export $(cat .env.development | grep -v '^#' | xargs)
+    # Use set -a to export all variables
+    set -a
+    source .env.development
+    set +a
+    
+    # Debug: Show loaded CORS origins
+    echo "📋 CORS Origins: $MATCHERING_CORS_ORIGINS"
 fi
 
 # Start uvicorn with CUDA support and network access
