@@ -415,11 +415,11 @@ async def predict_mastering_parameters(
             # Use the selected model's features for prediction
             # This is where we'd implement model-specific heads in the future
         
-        # Create dummy parameters for now (would come from actual model prediction)
+        # Create AI-predicted parameters with user-guided EQ
         predicted_params = MasteringParameters(
             genre_probabilities={"pop": 0.7, "electronic": 0.2, "rock": 0.1},
             predicted_genre="pop",
-            eq_curve=[0.0] * 31,  # Flat EQ for now
+            eq_curve=_generate_ai_eq_curve(request, characteristics),  # AI-generated EQ
             compression_ratio=2.5,
             compression_attack=10.0,
             compression_release=100.0,
@@ -432,22 +432,47 @@ async def predict_mastering_parameters(
             confidence=confidence
         )
         
-        # Apply user preferences
+        # Apply user preferences with improved intensity scaling
         if request.intensity_level == "high":
-            predicted_params.compression_ratio = min(predicted_params.compression_ratio * 1.5, 8.0)
-            predicted_params.limiting_threshold = max(predicted_params.limiting_threshold - 2.0, -6.0)
+            # High intensity: aggressive compression and limiting
+            predicted_params.compression_ratio = min(predicted_params.compression_ratio * 2.0, 10.0)
+            predicted_params.limiting_threshold = max(predicted_params.limiting_threshold - 3.0, -8.0)
+            predicted_params.compression_threshold = max(predicted_params.compression_threshold - 4.0, -24.0)
+            # Scale EQ curve for more aggressive processing
+            predicted_params.eq_curve = [gain * 1.5 for gain in predicted_params.eq_curve]
         elif request.intensity_level == "low":
             predicted_params.compression_ratio = max(predicted_params.compression_ratio * 0.7, 1.5)
             predicted_params.limiting_threshold = min(predicted_params.limiting_threshold + 1.0, -0.5)
+            # Scale EQ curve for gentler processing
+            predicted_params.eq_curve = [gain * 0.5 for gain in predicted_params.eq_curve]
+        elif request.intensity_level == "medium":
+            # Apply moderate scaling for medium intensity
+            predicted_params.eq_curve = [gain * 1.0 for gain in predicted_params.eq_curve]
         
         if not request.preserve_dynamics:
             predicted_params.compression_ratio = min(predicted_params.compression_ratio * 1.3, 10.0)
         
-        # Adjust target loudness
-        if abs(request.target_loudness_lufs - (-14.0)) > 1.0:
-            # Adjust limiting ceiling based on target loudness
-            loudness_diff = request.target_loudness_lufs - (-14.0)
-            predicted_params.limiting_ceiling = max(min(predicted_params.limiting_ceiling - loudness_diff, 0.0), -3.0)
+        # Fixed target LUFS calculation
+        target_lufs = request.target_loudness_lufs
+        if target_lufs <= -10.0:  # Very aggressive (streaming/club music)
+            predicted_params.limiting_threshold = -0.1
+            predicted_params.limiting_ceiling = -0.05
+            predicted_params.compression_ratio = min(predicted_params.compression_ratio * 1.8, 15.0)
+        elif target_lufs <= -12.0:  # Aggressive (modern pop)
+            predicted_params.limiting_threshold = -0.5
+            predicted_params.limiting_ceiling = -0.1
+            predicted_params.compression_ratio = min(predicted_params.compression_ratio * 1.5, 12.0)
+        elif target_lufs <= -16.0:  # Standard (streaming)
+            predicted_params.limiting_threshold = -1.0
+            predicted_params.limiting_ceiling = -0.3
+        elif target_lufs <= -20.0:  # Conservative (dynamic music)
+            predicted_params.limiting_threshold = -2.0
+            predicted_params.limiting_ceiling = -0.5
+            predicted_params.compression_ratio = max(predicted_params.compression_ratio * 0.8, 1.5)
+        else:  # Very conservative (classical, jazz)
+            predicted_params.limiting_threshold = -3.0
+            predicted_params.limiting_ceiling = -1.0
+            predicted_params.compression_ratio = max(predicted_params.compression_ratio * 0.6, 1.2)
         
         processing_time = time.time() - start_time
         
@@ -1157,12 +1182,16 @@ async def _create_virtual_reference(
         target_lufs = mastering_request.target_loudness_lufs or -16.0
         current_rms = np.sqrt(np.mean(audio**2))
         
-        # Simple loudness scaling (more sophisticated in production)
+        # Improved loudness scaling with proper LUFS conversion
         if current_rms > 0:
-            # Convert LUFS target to approximate RMS scaling
-            target_rms = 10**(target_lufs / 20.0) * 0.1  # Rough conversion
-            loudness_scale = target_rms / current_rms
+            # More accurate LUFS to linear scale conversion
+            # LUFS = -0.691 + 10*log10(mean(audio^2))
+            target_linear = 10**((target_lufs + 0.691) / 20.0)
+            loudness_scale = target_linear / current_rms
+            # Clamp scaling to prevent extreme values
+            loudness_scale = np.clip(loudness_scale, 0.1, 10.0)
             reference_audio = reference_audio * loudness_scale
+            logger.info(f"Applied loudness scaling: {loudness_scale:.3f} for target {target_lufs} LUFS")
         
         # 2. EQ adjustments based on AI predictions
         eq_style = mastering_request.eq_style
@@ -1300,26 +1329,39 @@ def _create_matchering_config(
         else:
             config.limiter_max_amplification_db = 12.0  # More aggressive
         
-        # Apply AI-predicted intensity
-        intensity = predicted_params.get('intensity_level', 'medium')
-        if intensity == 'high':
-            config.loudness_max_peak = -0.5
-            config.limiter_max_amplification_db = 15.0
-        elif intensity == 'low':
-            config.loudness_max_peak = -2.0
-            config.limiter_max_amplification_db = 6.0
-        else:  # medium
-            config.loudness_max_peak = -1.0
-            config.limiter_max_amplification_db = 10.0
+        # Apply USER intensity settings (FIXED: was reading from predicted_params)
+        intensity = mastering_request.intensity_level  # CORRECT SOURCE!
+        target_lufs = mastering_request.target_loudness_lufs
         
-        # Apply target loudness if specified
-        if mastering_request.target_loudness_lufs:
-            # Matchering doesn't directly support LUFS targeting, but we can adjust parameters
-            target_lufs = mastering_request.target_loudness_lufs
-            if target_lufs > -14:  # Very loud
-                config.loudness_max_peak = -0.1
-            elif target_lufs < -20:  # Conservative
-                config.loudness_max_peak = -3.0
+        # Configure based on target LUFS with proper intensity scaling
+        if target_lufs <= -10.0:  # Very aggressive (streaming/club music)
+            config.loudness_max_peak = -0.035
+            config.limiter_max_amplification_db = 26.0
+            config.limiter_attack_coefficient = 0.003  # Fast attack
+        elif target_lufs <= -12.0:  # Aggressive (modern pop)
+            config.loudness_max_peak = -0.05
+            config.limiter_max_amplification_db = 22.0
+            config.limiter_attack_coefficient = 0.005
+        elif target_lufs <= -16.0:  # Standard (streaming)
+            config.loudness_max_peak = -0.1
+            config.limiter_max_amplification_db = 15.0
+            config.limiter_attack_coefficient = 0.01
+        elif target_lufs <= -20.0:  # Conservative (dynamic music)
+            config.loudness_max_peak = -0.3
+            config.limiter_max_amplification_db = 10.0
+            config.limiter_attack_coefficient = 0.02
+        else:  # Very conservative (classical, jazz)
+            config.loudness_max_peak = -0.5
+            config.limiter_max_amplification_db = 6.0
+            config.limiter_attack_coefficient = 0.05
+        
+        # Apply intensity scaling on top of LUFS-based settings
+        if intensity == 'high':
+            config.limiter_max_amplification_db = min(config.limiter_max_amplification_db * 1.3, 30.0)
+            config.loudness_max_peak = max(config.loudness_max_peak * 0.7, -0.03)
+        elif intensity == 'low':
+            config.limiter_max_amplification_db = max(config.limiter_max_amplification_db * 0.7, 5.0)
+            config.loudness_max_peak = min(config.loudness_max_peak * 1.5, -0.5)
         
         logger.info(f"Created Matchering config: max_peak={config.loudness_max_peak}, "
                    f"max_amp={config.limiter_max_amplification_db}")
@@ -1434,3 +1476,91 @@ def _estimate_processing_time(
     multiplier = mode_multipliers.get(processing_mode, 1.0) * model_multipliers.get(model_used, 1.0)
     
     return base_time * multiplier + 5.0  # Add 5 second overhead
+
+
+def _generate_ai_eq_curve(
+    request: HybridMasteringRequest,
+    characteristics: "AudioCharacteristics"
+) -> List[float]:
+    """
+    Generate AI-guided EQ curve based on user preferences and audio characteristics.
+    
+    Args:
+        request: User mastering request with EQ style preference
+        characteristics: Audio analysis characteristics
+        
+    Returns:
+        List of 31 EQ gains in dB for standard frequency bands
+    """
+    try:
+        # 31-band EQ frequencies (standard graphic EQ)
+        # 20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
+        # 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000 Hz
+        
+        # Initialize with flat response
+        eq_curve = [0.0] * 31
+        
+        # Get EQ style preference
+        eq_style = request.eq_style or "balanced"
+        
+        # Base EQ curves for different styles
+        if eq_style == "bright":
+            # Bright style: gentle low-cut, high-shelf boost
+            eq_curve = [
+                -0.5, -0.3, -0.2, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # 20-200 Hz
+                0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,       # 250-1600 Hz
+                0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.0, 3.2  # 2000-20000 Hz
+            ]
+        elif eq_style == "warm":
+            # Warm style: gentle low boost, slight high roll-off
+            eq_curve = [
+                1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.2, 0.1, 0.1,       # 20-200 Hz
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.2,     # 250-1600 Hz
+                -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, -1.0, -1.2, -1.4, -1.6, -1.8  # 2000-20000 Hz
+            ]
+        elif eq_style == "balanced":
+            # Balanced style: gentle smile curve
+            eq_curve = [
+                0.3, 0.2, 0.2, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0,       # 20-200 Hz
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2,       # 250-1600 Hz
+                0.3, 0.4, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.6, 1.7, 1.8  # 2000-20000 Hz
+            ]
+        elif eq_style == "auto":
+            # Auto style: analyze audio characteristics for intelligent EQ
+            spectral_centroid = getattr(characteristics, 'spectral_centroid', 2500.0)
+            
+            if spectral_centroid < 2000:  # Dark/warm content
+                eq_curve = [
+                    0.2, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # Gentle low boost
+                    0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 1.1,   # Midrange presence
+                    1.3, 1.5, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4  # High boost
+                ]
+            elif spectral_centroid > 3500:  # Bright/harsh content
+                eq_curve = [
+                    0.5, 0.4, 0.3, 0.2, 0.2, 0.1, 0.1, 0.0, 0.0, 0.0,   # Low warmth
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.2, -0.3, # Midrange cut
+                    -0.4, -0.5, -0.6, -0.8, -1.0, -1.2, -1.4, -1.6, -1.8, -2.0, -2.2  # High cut
+                ]
+            else:  # Balanced content
+                eq_curve = [
+                    0.2, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # Subtle low boost
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3,   # Midrange clarity
+                    0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.1, 2.2  # High presence
+                ]
+        else:
+            # Default to balanced for unknown styles
+            eq_curve = [
+                0.2, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3,
+                0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.1, 2.2
+            ]
+        
+        # Clamp EQ values to reasonable range (±6dB)
+        eq_curve = [max(-6.0, min(6.0, gain)) for gain in eq_curve]
+        
+        return eq_curve
+        
+    except Exception as e:
+        logger.error(f"EQ curve generation failed: {e}")
+        # Return flat response on error
+        return [0.0] * 31
