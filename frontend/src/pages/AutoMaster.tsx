@@ -69,7 +69,7 @@ const AutoMaster = (): JSX.Element => {
           },
           processedFile: {
             name: uploadedFile.name.replace(/\.(wav|mp3|flac|aiff)$/i, '_mastered.$1'),
-            url: outputUrl,
+            url: outputUrl.startsWith('http') ? outputUrl : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${outputUrl}`,
             metrics: {
               rms: -14.2,
               peak: -0.1,
