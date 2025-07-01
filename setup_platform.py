@@ -168,9 +168,9 @@ def determine_pytorch_index_url(platform_info):
     cuda_runtime = platform_info.get("cuda_runtime_version")
     
     # For Enhanced Matchering, we standardize on CUDA 12.4 for RTX 4090
-    # This ensures compatibility with our specific CUDA setup
+    # This ensures compatibility with our specific CUDA setup and CLAP model security requirements
     if platform_info.get("gpu_name") and "RTX 4090" in platform_info["gpu_name"]:
-        print("🚀 RTX 4090 detected - using CUDA 12.4 optimized PyTorch")
+        print("🚀 RTX 4090 detected - using CUDA 12.4 optimized PyTorch 2.6.0+ (required for CLAP security)")
         return "https://download.pytorch.org/whl/cu124"
     
     # Map CUDA versions to PyTorch wheel versions
@@ -196,6 +196,49 @@ def determine_pytorch_index_url(platform_info):
 
 def install_pytorch_with_cuda(platform_info):
     """Install PyTorch with appropriate CUDA support."""
+    
+    # Check if PyTorch is already installed and working
+    try:
+        import torch
+        current_version = torch.__version__
+        
+        if platform_info["has_cuda"] and torch.cuda.is_available():
+            print(f"✅ PyTorch {current_version} already installed and working with CUDA")
+            print(f"🚀 GPU available: {torch.cuda.device_count()} device(s)")
+            
+            # Check TorchAudio
+            try:
+                import torchaudio
+                print(f"✅ TorchAudio {torchaudio.__version__} already installed and working")
+                print("⚠️  Skipping PyTorch installation to preserve working environment")
+                print("💡 To force reinstall, manually uninstall torch and torchaudio first")
+                return True
+            except (ImportError, OSError) as e:
+                print(f"⚠️  TorchAudio has issues: {e}")
+                print("🔧 Will try to install compatible TorchAudio version...")
+                # Install matching TorchAudio version
+                if "cu124" in current_version:
+                    torchaudio_version = current_version.replace("torch", "torchaudio")
+                    cmd = ["uv", "pip", "install", f"torchaudio=={torchaudio_version}", "--index-url", "https://download.pytorch.org/whl/cu124"]
+                else:
+                    cmd = ["uv", "pip", "install", "torchaudio", "--upgrade"]
+                
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300)
+                    print("✅ TorchAudio fixed!")
+                    return True
+                except Exception as e:
+                    print(f"❌ TorchAudio fix failed: {e}")
+                    
+        elif not platform_info["has_cuda"]:
+            print(f"✅ PyTorch {current_version} already installed for CPU")
+            print("⚠️  Skipping PyTorch installation to preserve working environment")
+            return True
+            
+    except ImportError:
+        print("📦 PyTorch not found, proceeding with fresh installation...")
+    
+    # Fresh installation only if PyTorch is not working
     if not platform_info["has_cuda"]:
         print("💻 Installing CPU-only PyTorch...")
         cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"]
@@ -206,7 +249,7 @@ def install_pytorch_with_cuda(platform_info):
         
         # For CUDA 12.4 setups, install specific versions to ensure compatibility
         if "cu124" in index_url:
-            cmd = ["uv", "pip", "install", "torch==2.5.1+cu124", "torchaudio==2.5.1+cu124", "--index-url", index_url]
+            cmd = ["uv", "pip", "install", "torch==2.6.0+cu124", "torchaudio==2.6.0+cu124", "--index-url", index_url]
         else:
             cmd = ["uv", "pip", "install", "torch", "torchaudio", "--index-url", index_url]
     
@@ -229,15 +272,35 @@ def install_dependencies(platform_info):
     
     # Step 1: Use platform-specific pyproject.toml
     pyproject_file = "pyproject.toml"  # Default
+    backup_needed = False
+    
     if platform_info["system"] == "Darwin":
         # Use Mac-specific pyproject.toml for CPU-only dependencies
         pyproject_file = "pyproject-mac.toml"
         print(f"🍎 Using Mac-specific dependencies: {pyproject_file}")
         
-        # Temporarily backup original and use Mac version
+        # Only backup and switch if not already using Mac config
         if Path("pyproject-mac.toml").exists():
-            subprocess.run(["cp", "pyproject.toml", "pyproject-linux.toml.bak"], check=False)
-            subprocess.run(["cp", "pyproject-mac.toml", "pyproject.toml"], check=True)
+            # Check if we're already using Mac config
+            with open("pyproject.toml", "r") as f:
+                current_content = f.read()
+            with open("pyproject-mac.toml", "r") as f:
+                mac_content = f.read()
+            
+            if current_content != mac_content:
+                print("🔄 Switching to Mac configuration...")
+                subprocess.run(["cp", "pyproject.toml", "pyproject-linux.toml.bak"], check=False)
+                subprocess.run(["cp", "pyproject-mac.toml", "pyproject.toml"], check=True)
+                backup_needed = True
+            else:
+                print("✅ Already using Mac configuration")
+    else:
+        # Linux/Windows - ensure we're using the main config
+        if Path("pyproject-linux.toml.bak").exists():
+            print("🐧 Restoring Linux configuration...")
+            subprocess.run(["cp", "pyproject-linux.toml.bak", "pyproject.toml"], check=True)
+        else:
+            print("🐧 Using Linux configuration (current pyproject.toml)")
     
     # Step 2: Install core dependencies
     print("🔧 Installing core dependencies...")

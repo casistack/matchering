@@ -7,5 +7,5 @@ export CUDA_HOME=/usr/local/cuda-12.4
 export LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH
 export PATH=/usr/local/cuda-12.4/bin:$PATH
 
-echo "✅ CUDA environment variables set for PyTorch 2.5.1+cu124"
+echo "✅ CUDA environment variables set for PyTorch 2.6.0+cu124"
 echo "🚀 Ready for GPU-accelerated audio processing"
