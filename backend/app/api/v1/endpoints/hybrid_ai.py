@@ -924,6 +924,9 @@ async def _process_audio_background(
             )
             
             if processed_audio_path and Path(processed_audio_path).exists():
+                logger.info(f"Processed file created at: {processed_audio_path}")
+                logger.info(f"Processed file size: {Path(processed_audio_path).stat().st_size} bytes")
+                
                 # Move to results directory with proper naming
                 results_dir = Path("results")
                 results_dir.mkdir(exist_ok=True)
@@ -938,6 +941,10 @@ async def _process_audio_background(
                 shutil.copy2(processed_audio_path, final_output_path)
                 
                 logger.info(f"Mastered audio saved: {final_output_path}")
+                logger.info(f"Final output file size: {final_output_path.stat().st_size} bytes")
+                
+                # TODO: Store the result path in database for proper job-to-file mapping
+                # For now, we rely on file timestamps in results endpoint
             else:
                 logger.error(f"Failed to process audio for job {job_id}")
                 

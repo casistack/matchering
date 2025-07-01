@@ -9,6 +9,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import logging
+import os
+from pathlib import Path
 
 from app.core.database import get_db
 from app.core.exceptions import JobNotFoundError
@@ -95,17 +97,40 @@ async def download_result(
         JobNotFoundError: If job not found
         HTTPException: If file not available
     """
-    # Placeholder implementation
     logger.info(f"Download requested for job: {job_id}")
     
-    # TODO: Implement actual file serving
-    # For now, return a placeholder response
-    return Response(
-        content="Placeholder audio file content",
+    # Look for processed files in results directory
+    results_dir = Path("results")
+    logger.info(f"Looking for files in: {results_dir.absolute()}")
+    
+    if not results_dir.exists():
+        logger.error(f"Results directory does not exist: {results_dir.absolute()}")
+        raise HTTPException(status_code=404, detail="Results directory not found")
+    
+    # Try to find the processed file for this job
+    # Look for files ending with _mastered.wav
+    mastered_files = list(results_dir.glob("*_mastered.wav"))
+    logger.info(f"Found {len(mastered_files)} mastered files: {[f.name for f in mastered_files]}")
+    
+    if not mastered_files:
+        logger.error(f"No mastered files found in {results_dir}")
+        raise HTTPException(status_code=404, detail="Processed file not found")
+    
+    # For now, return the most recent mastered file
+    # TODO: Implement proper job-to-file mapping in database
+    most_recent_file = max(mastered_files, key=lambda f: f.stat().st_mtime)
+    
+    if not most_recent_file.exists():
+        logger.error(f"File not found: {most_recent_file}")
+        raise HTTPException(status_code=404, detail="Processed file not found")
+    
+    file_size = most_recent_file.stat().st_size
+    logger.info(f"Serving file: {most_recent_file} ({file_size} bytes)")
+    
+    return FileResponse(
+        path=str(most_recent_file),
         media_type="audio/wav",
-        headers={
-            "Content-Disposition": f"attachment; filename=mastered_{job_id}.wav"
-        }
+        filename=most_recent_file.name
     )
 
 
