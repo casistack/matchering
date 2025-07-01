@@ -99,7 +99,7 @@ async def download_result(
     """
     logger.info(f"Download requested for job: {job_id}")
     
-    # Look for processed files in results directory
+    # Look for processed files in results directory (relative to backend directory)
     results_dir = Path("results")
     logger.info(f"Looking for files in: {results_dir.absolute()}")
     
