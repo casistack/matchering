@@ -1010,8 +1010,12 @@ async def _process_audio_background(
             # Import WebSocket broadcast function
             from app.api.v1.endpoints.processing import broadcast_message
             
+            # Wait a moment for WebSocket connection to establish
+            await asyncio.sleep(0.1)
+            
             # Send initial progress update
             try:
+                logger.info(f"Attempting to send initial progress update for job {job_id}")
                 await broadcast_message(job_id, {
                     "type": "progress_update",
                     "payload": {
@@ -1023,8 +1027,10 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
+                logger.info(f"Successfully sent initial progress update for job {job_id}")
             except Exception as e:
-                logger.warning(f"Failed to send initial progress: {e}")
+                logger.error(f"Failed to send initial progress: {e}")
+                logger.error(f"Full traceback: {traceback.format_exc()}")
             
             # Step 1: Create a temporary UploadFile-like object from the saved file
             from fastapi import UploadFile

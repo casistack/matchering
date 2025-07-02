@@ -206,7 +206,7 @@ const MasteringComparison = ({
             <Typography variant="body1">
               <strong>Processing Completed Successfully!</strong>
             </Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>
+            <Typography component="div" sx={{ mt: 1, fontSize: '0.875rem', lineHeight: 1.43 }}>
               Your track has been mastered using <strong>{processingResult.processingSettings.mode}</strong> mode
               with <strong>{processingResult.processingSettings.intensity}</strong> intensity.
               {processingResult.aiPredictions && (
