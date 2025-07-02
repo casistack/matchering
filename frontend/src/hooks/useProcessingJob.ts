@@ -14,6 +14,7 @@ import type {
   ProcessingJobRequest,
   ProcessingJobResponse 
 } from '@/types';
+import type { JobCompletedPayload } from '@/services/websocket';
 
 /**
  * Processing Job State
@@ -40,7 +41,7 @@ export interface ProcessingJobState {
 export interface UseProcessingJobOptions {
   onJobStarted?: (jobId: string, response: ProcessingJobResponse) => void;
   onProgressUpdate?: (progress: number, stage: string) => void;
-  onJobCompleted?: (jobId: string, outputUrl: string | null) => void;
+  onJobCompleted?: (jobId: string, outputUrl: string | null, completion?: JobCompletedPayload) => void;
   onJobFailed?: (jobId: string, error: string) => void;
   onJobCancelled?: (jobId: string) => void;
   autoConnectWebSocket?: boolean;
@@ -125,7 +126,8 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
         remainingTime: 0,
       }));
       
-      optionsRef.current.onJobCompleted?.(completion.job_id, completion.output_file_url || null);
+      // Pass the full completion payload including AI predictions
+      optionsRef.current.onJobCompleted?.(completion.job_id, completion.output_file_url || null, completion);
     },
     
     onJobFailed: (failure) => {

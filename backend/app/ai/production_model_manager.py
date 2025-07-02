@@ -87,15 +87,6 @@ class ProductionModelManager:
                 cache_features=True,
                 quantize=True
             ),
-            'clap': ModelConfig(
-                model_name='laion/clap-htsat-unfused',
-                feature_dim=640,  # Actual CLAP output dimension
-                requires_spectrogram=False,
-                memory_mb=1800,  # ~1.8GB GPU memory
-                max_concurrent=3,
-                cache_features=True,
-                quantize=False  # CLAP doesn't quantize well
-            ),
             'musicgen': ModelConfig(
                 model_name='facebook/musicgen-small',
                 feature_dim=1024,
@@ -244,44 +235,24 @@ class ProductionModelManager:
     def _download_and_cache_model(self, model_type: str, config: ModelConfig) -> Tuple[Any, Any]:
         """Download model and cache for future use."""
         try:
-            # Special handling for CLAP models
-            if model_type == 'clap':
+            # Standard model loading for AST, Wav2Vec2, MusicGen
+            # Use float32 to avoid dtype compatibility issues
+            model = AutoModel.from_pretrained(
+                config.model_name,
+                trust_remote_code=False,
+                use_safetensors=True,
+                torch_dtype=torch.float32
+            )
+            
+            # Download processor
+            processor = None
+            try:
+                processor = AutoProcessor.from_pretrained(config.model_name)
+            except:
                 try:
-                    # CLAP requires specific loading
-                    import laion_clap # type: ignore
-                    model = laion_clap.CLAP_Module(enable_fusion=False)
-                    model.load_ckpt()  # This downloads and loads the model
-                    processor = None  # CLAP handles its own processing
-                    logger.info(f"Successfully loaded CLAP model using laion_clap")
-                except ImportError:
-                    logger.warning("laion_clap not available, trying alternative CLAP loading")
-                    # Try loading with transformers if available
-                    try:
-                        from transformers import ClapModel, ClapProcessor
-                        model = ClapModel.from_pretrained(config.model_name)
-                        processor = ClapProcessor.from_pretrained(config.model_name)
-                    except Exception as e:
-                        logger.error(f"Alternative CLAP loading failed: {e}")
-                        # Skip CLAP for now - it's optional
-                        return None, None
-            else:
-                # Standard model loading for AST, Wav2Vec2, etc.
-                model = AutoModel.from_pretrained(
-                    config.model_name,
-                    trust_remote_code=False,
-                    use_safetensors=True,
-                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
-                )
-                
-                # Download processor
-                processor = None
-                try:
-                    processor = AutoProcessor.from_pretrained(config.model_name)
+                    processor = AutoFeatureExtractor.from_pretrained(config.model_name)
                 except:
-                    try:
-                        processor = AutoFeatureExtractor.from_pretrained(config.model_name)
-                    except:
-                        logger.warning(f"No processor found for {model_type}")
+                    logger.warning(f"No processor found for {model_type}")
             
             # Cache models
             self._cache_model(model_type, model, processor)
@@ -384,12 +355,14 @@ class ProductionModelManager:
                 logger.info(f"Skipping quantization on CUDA due to compatibility issues")
             
             # Compile model for faster inference (PyTorch 2.0+)
-            if hasattr(torch, 'compile'):
-                try:
-                    model = torch.compile(model, mode='reduce-overhead')
-                    logger.info("Applied torch.compile optimization")
-                except:
-                    logger.info("torch.compile not available, skipping")
+            # Disabled due to dtype compatibility issues with float16 models
+            # if hasattr(torch, 'compile'):
+            #     try:
+            #         model = torch.compile(model, mode='reduce-overhead')
+            #         logger.info("Applied torch.compile optimization")
+            #     except:
+            #         logger.info("torch.compile not available, skipping")
+            logger.info("Skipping torch.compile due to dtype compatibility")
             
             return model
             

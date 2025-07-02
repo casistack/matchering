@@ -50,6 +50,55 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# WebSocket connection manager
+class WebSocketManager:
+    def __init__(self):
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+    
+    async def connect(self, websocket: WebSocket, job_id: str):
+        """Connect a WebSocket for a specific job."""
+        await websocket.accept()
+        if job_id not in self.active_connections:
+            self.active_connections[job_id] = []
+        self.active_connections[job_id].append(websocket)
+        logger.info(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
+    
+    def disconnect(self, websocket: WebSocket, job_id: str):
+        """Disconnect a WebSocket for a specific job."""
+        if job_id in self.active_connections:
+            if websocket in self.active_connections[job_id]:
+                self.active_connections[job_id].remove(websocket)
+                logger.info(f"WebSocket disconnected for job {job_id}. Remaining connections: {len(self.active_connections[job_id])}")
+            if not self.active_connections[job_id]:
+                del self.active_connections[job_id]
+    
+    async def broadcast_to_job(self, job_id: str, message: Dict):
+        """Broadcast message to all WebSocket connections for a specific job."""
+        if job_id not in self.active_connections:
+            logger.warning(f"No active WebSocket connections for job {job_id}")
+            return
+        
+        message_text = json.dumps(message)
+        disconnected_connections = []
+        
+        for connection in self.active_connections[job_id]:
+            try:
+                await connection.send_text(message_text)
+            except Exception as e:
+                logger.error(f"Failed to send WebSocket message: {e}")
+                disconnected_connections.append(connection)
+        
+        # Clean up disconnected connections
+        for connection in disconnected_connections:
+            self.disconnect(connection, job_id)
+
+# Global WebSocket manager instance
+websocket_manager = WebSocketManager()
+
+async def broadcast_message(job_id: str, message: Dict):
+    """Public function to broadcast messages to WebSocket clients."""
+    await websocket_manager.broadcast_to_job(job_id, message)
+
 
 @router.post("/jobs/debug", response_model=Dict)
 async def debug_processing_job(
@@ -893,13 +942,12 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
         websocket: WebSocket connection
         job_id: Processing job identifier
     """
-    await websocket.accept()
-    logger.info(f"WebSocket connection established for job: {job_id}")
-    
     try:
         # Validate job exists
-        # In production, would validate against database
         validate_uuid_string(job_id, "job_id")
+        
+        # Connect to WebSocket manager
+        await websocket_manager.connect(websocket, job_id)
         
         # Send initial status
         initial_status = {
@@ -914,56 +962,15 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
         
         await websocket.send_text(json.dumps(initial_status))
         
-        # In production, would:
-        # 1. Subscribe to Redis/RabbitMQ job progress updates
-        # 2. Query database for current job status
-        # 3. Send real-time updates as they occur
-        
-        # Placeholder: Send periodic updates
+        # Keep connection alive and listen for disconnect
         import asyncio
-        progress_value = 0.0
-        stages = ["validation", "feature_extraction", "ai_analysis", "audio_processing", "finalization"]
-        current_stage_idx = 0
+        try:
+            while True:
+                # Wait for any data (typically disconnect)
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket connection closed for job: {job_id}")
         
-        while progress_value < 100.0 and current_stage_idx < len(stages):
-            progress_value += 10.0
-            if progress_value >= (current_stage_idx + 1) * 20.0:
-                current_stage_idx += 1
-            
-            progress_data = {
-                "type": "processing_progress",
-                "payload": {
-                    "job_id": job_id,
-                    "status": "completed" if progress_value >= 100.0 else "processing",
-                    "progress_percentage": min(progress_value, 100.0),
-                    "current_stage": stages[min(current_stage_idx, len(stages) - 1)],
-                    "message": f"Processing stage: {stages[min(current_stage_idx, len(stages) - 1)]}",
-                    "elapsed_time": int(progress_value * 2),
-                    "remaining_time": max(0, int((100.0 - progress_value) * 2))
-                },
-                "timestamp": datetime.utcnow().isoformat(),
-                "message_id": str(uuid.uuid4())
-            }
-            
-            await websocket.send_text(json.dumps(progress_data))
-            
-            if progress_value >= 100.0:
-                completion_data = {
-                    "type": "job_completed",
-                    "payload": {
-                        "job_id": job_id,
-                        "status": "completed",
-                        "message": "Processing completed successfully",
-                        "output_file_url": f"/api/v1/results/{job_id}/download"
-                    },
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "message_id": str(uuid.uuid4())
-                }
-                await websocket.send_text(json.dumps(completion_data))
-                break
-            
-            await asyncio.sleep(3)  # Update every 3 seconds
-            
     except WebSocketDisconnect:
         logger.info(f"WebSocket connection closed for job: {job_id}")
     except Exception as e:
@@ -982,4 +989,6 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
             await websocket.send_text(json.dumps(error_data))
         except:
             pass
-        await websocket.close()
+    finally:
+        # Ensure cleanup
+        websocket_manager.disconnect(websocket, job_id)

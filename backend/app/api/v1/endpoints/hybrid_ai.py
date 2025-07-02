@@ -2,7 +2,7 @@
 Hybrid AI mastering endpoints for FastAPI.
 
 This module provides production-ready endpoints for hybrid AI mastering
-combining pre-trained models (AST, Wav2Vec, CLAP, MusicGen) with custom models
+combining pre-trained models (AST, Wav2Vec2) with custom models
 for intelligent audio mastering parameter prediction and processing.
 """
 
@@ -106,11 +106,11 @@ class HybridMasteringRequest(BaseModel):
     # AI-specific settings
     model_preference: Optional[str] = Field(
         default="auto",
-        description="Preferred model ('auto', 'ast', 'wav2vec', 'clap', 'custom', 'ensemble')"
+        description="Preferred model ('auto', 'ast', 'wav2vec', 'custom', 'ensemble')"
     )
     user_style: Optional[str] = Field(
         default=None,
-        description="Text description of desired mastering style (for CLAP model)"
+        description="Text description of desired mastering style"
     )
     
     # Processing settings (matching frontend ProcessingSettings)
@@ -224,7 +224,7 @@ async def get_model_selector():
                     elif characteristics.genre in ['rock', 'metal', 'punk']:
                         return 'wav2vec', 0.80, 'Wav2Vec handles dynamic content well'
                     elif characteristics.has_vocals:
-                        return 'clap', 0.90, 'CLAP provides excellent vocal content understanding'
+                        return 'ast', 0.80, 'AST provides good vocal content analysis'
                 
                 # Fallback to characteristics
                 if characteristics.complexity_score > 0.7:
@@ -312,8 +312,6 @@ async def extract_hybrid_features(
             "features": {
                 "ast_features": hybrid_features.ast_features if include_model_features else None,
                 "wav2vec_features": hybrid_features.wav2vec_features if include_model_features else None,
-                "clap_features": hybrid_features.clap_features if include_model_features else None,
-                "musicgen_features": hybrid_features.musicgen_features if include_model_features else None,
                 "custom_features": hybrid_features.custom_features if include_custom_features else None,
                 "fused_features": hybrid_features.fused_features
             },
@@ -436,7 +434,7 @@ async def predict_mastering_parameters(
         
         # For now, use our custom model for parameter prediction
         # TODO: Implement model-specific prediction heads
-        if selected_model in ['ast', 'wav2vec', 'clap', 'ensemble']:
+        if selected_model in ['ast', 'wav2vec', 'ensemble']:
             logger.info(f"Using {selected_model} model features with custom prediction head")
             # Use the selected model's features for prediction
             # This is where we'd implement model-specific heads in the future
@@ -887,13 +885,6 @@ async def get_available_models(request: Request) -> Dict:
                 "best_for": ["rock", "metal", "dynamic_content"],
                 "available": model_availability.get("wav2vec", False)
             },
-            "clap": {
-                "name": "Contrastive Language-Audio Pretraining",
-                "description": "Cross-modal audio-text understanding",
-                "capabilities": ["text_guided_mastering", "style_transfer", "vocal_analysis"],
-                "best_for": ["vocal_content", "style_specific_mastering"],
-                "available": model_availability.get("clap", False)
-            },
             "custom": {
                 "name": "Custom CNN-LSTM",
                 "description": "Specialized mastering-focused neural network",
@@ -1129,8 +1120,46 @@ async def _process_audio_background(
         
         logger.info(f"Background hybrid AI processing completed for job {job_id}")
         
+        # Send completion notification via WebSocket with AI predictions
+        try:
+            from app.api.v1.endpoints.processing import broadcast_message
+            
+            # Create AI predictions object for frontend
+            ai_predictions = {
+                "modelUsed": model_used,
+                "confidence": model_confidence,
+                "predictedGenre": predicted_params.get('predicted_genre', 'unknown'),
+                "isUsingFallbackGenre": predicted_params.get('is_using_fallback_genre', False),
+                "audioCharacteristics": audio_characteristics,
+                "processingTime": prediction_time / 1000  # Convert to seconds
+            }
+            
+            # Prepare completion message
+            completion_message = {
+                "type": "job_completed",
+                "payload": {
+                    "job_id": job_id,
+                    "status": "completed",
+                    "message": "Hybrid AI mastering completed successfully",
+                    "output_file_url": f"/api/v1/results/download/{final_output_path.name}",
+                    "ai_predictions": ai_predictions,
+                    "processing_metadata": {
+                        "total_time": prediction_time,
+                        "features_used": prediction_response.get('processing_metadata', {}).get('features_used', [])
+                    }
+                },
+                "timestamp": time.time(),
+                "message_id": f"completion_{job_id}"
+            }
+            
+            # Broadcast to WebSocket clients
+            await broadcast_message(job_id, completion_message)
+            logger.info(f"WebSocket completion message sent for job {job_id}")
+            
+        except Exception as ws_error:
+            logger.error(f"Failed to send WebSocket completion message: {ws_error}")
+        
         # TODO: Update job status in database to completed
-        # TODO: Send completion notification via WebSocket
         # TODO: Store processed audio file and metadata
         
         # Clean up temporary files (keep original, clean up intermediate files)
@@ -1731,7 +1760,6 @@ def _estimate_processing_time(
     model_multipliers = {
         "ast": 1.2,
         "wav2vec": 1.5,
-        "clap": 1.3,
         "custom": 1.0,
         "ensemble": 2.0
     }

@@ -113,15 +113,6 @@ class ProductionDeploymentConfig(BaseModel):
                 preload_on_startup=True,
                 memory_limit_mb=3200
             ),
-            "clap": ModelDeploymentConfig(
-                enabled=True,
-                quantization=False,  # CLAP doesn't quantize well
-                max_batch_size=6,
-                max_concurrent_requests=3,
-                cache_features=True,
-                preload_on_startup=True,
-                memory_limit_mb=1800
-            ),
             "musicgen": ModelDeploymentConfig(
                 enabled=False,  # Disabled by default due to size
                 quantization=True,

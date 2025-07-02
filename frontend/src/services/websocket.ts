@@ -46,6 +46,18 @@ export interface ProcessingProgressPayload {
 }
 
 /**
+ * AI Predictions from processing
+ */
+export interface AIPredictions {
+  modelUsed: string;
+  confidence: number;
+  predictedGenre: string;
+  isUsingFallbackGenre?: boolean;
+  audioCharacteristics: Record<string, any>;
+  processingTime: number;
+}
+
+/**
  * Job Completed Payload
  */
 export interface JobCompletedPayload {
@@ -53,6 +65,8 @@ export interface JobCompletedPayload {
   status: string;
   message: string;
   output_file_url?: string;
+  ai_predictions?: AIPredictions;
+  processing_metadata?: Record<string, any>;
 }
 
 /**

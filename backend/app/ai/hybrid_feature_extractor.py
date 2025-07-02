@@ -41,7 +41,6 @@ class HybridFeatures(BaseModel):
     # Pre-trained model features
     ast_features: Optional[List[float]] = Field(default=None, description="Audio Spectrogram Transformer features")
     wav2vec_features: Optional[List[float]] = Field(default=None, description="Wav2Vec 2.0 temporal features")
-    clap_features: Optional[List[float]] = Field(default=None, description="CLAP semantic features")
     musicgen_features: Optional[List[float]] = Field(default=None, description="MusicGen music-specific features")
     
     # Custom features (from our original extractor)
@@ -90,11 +89,6 @@ class PretrainedModelLoader:
                 'feature_dim': 1024,
                 'requires_spectrogram': False
             },
-            'clap': {
-                'model_name': 'laion/clap-htsat-unfused',
-                'feature_dim': 512,
-                'requires_spectrogram': False
-            }
         }
         
     def load_model(self, model_type: str) -> Tuple[Optional[Any], Optional[Any]]:
@@ -282,15 +276,14 @@ class HybridFeatureExtractor:
                 model_type: config.feature_dim 
                 for model_type, config in production_model_manager.model_configs.items()
             }
-            # Note: CLAP actual output may differ from config, adjust if needed
+            # CLAP removed from system
             feature_dims['custom'] = 128  # Add custom features
             logger.info(f"Using production model feature dimensions: {feature_dims}")
         else:
-            # Legacy feature dimensions
+            # Legacy feature dimensions (CLAP removed)
             feature_dims = {
                 'ast': 768,
                 'wav2vec': 1024,
-                'clap': 512,
                 'custom': 128
             }
         
@@ -414,54 +407,6 @@ class HybridFeatureExtractor:
                 self.production_model_manager.release_model('wav2vec')
             return None
     
-    def _extract_clap_features(self, audio: torch.Tensor, sr: int) -> Optional[torch.Tensor]:
-        """Extract features using CLAP."""
-        try:
-            # Use production model manager if available
-            if self.use_production_manager:
-                model, processor = self.production_model_manager.get_model('clap')
-                if model is None:
-                    return None
-            else:
-                model, processor = self.model_loader.load_model('clap')
-                if model is None:
-                    return None
-            
-            # CLAP typically expects 48kHz
-            target_sr = 48000
-            if sr != target_sr:
-                resampler = torchaudio.transforms.Resample(sr, target_sr).to(self.device)
-                audio = resampler(audio.to(self.device))
-                sr = target_sr
-            
-            # Convert to numpy
-            audio_np = audio.squeeze().cpu().numpy()
-            
-            if processor is not None:
-                inputs = processor(audios=audio_np, sampling_rate=sr, return_tensors="pt")
-                inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            else:
-                # Manual preprocessing for CLAP
-                inputs = {"input_values": audio.unsqueeze(0).to(self.device)}
-            
-            with torch.no_grad():
-                outputs = model.get_audio_features(**inputs)
-                features = outputs if isinstance(outputs, torch.Tensor) else outputs.last_hidden_state.mean(dim=1)
-                
-                # Debug: log actual feature dimensions
-                logger.info(f"CLAP features shape: {features.shape if hasattr(features, 'shape') else type(features)}")
-                
-            # Release model when using production manager
-            if self.use_production_manager:
-                self.production_model_manager.release_model('clap')
-                
-            return features.squeeze()
-            
-        except Exception as e:
-            logger.warning(f"CLAP feature extraction failed: {e}")
-            if self.use_production_manager:
-                self.production_model_manager.release_model('clap')
-            return None
     
     async def _extract_custom_features(self, audio_path: str) -> Optional[Dict[str, Any]]:
         """Extract features using our custom feature extractor."""
@@ -527,14 +472,7 @@ class HybridFeatureExtractor:
             else:
                 model_availability['wav2vec'] = False
             
-            # 3. CLAP features
-            clap_features = self._extract_clap_features(audio, sr)
-            if clap_features is not None:
-                features['clap'] = clap_features
-                model_availability['clap'] = True
-                logger.debug("CLAP features extracted successfully")
-            else:
-                model_availability['clap'] = False
+            # CLAP removed - not needed for audio mastering
             
             # 4. Custom features
             custom_features = await self._extract_custom_features(audio_path)
@@ -564,7 +502,6 @@ class HybridFeatureExtractor:
             hybrid_features = HybridFeatures(
                 ast_features=ast_features.tolist() if ast_features is not None else None,
                 wav2vec_features=wav2vec_features.tolist() if wav2vec_features is not None else None,
-                clap_features=clap_features.tolist() if clap_features is not None else None,
                 musicgen_features=None,  # TODO: Implement MusicGen extraction
                 custom_features=custom_features,
                 fused_features=fused_features.tolist() if fused_features is not None else None,

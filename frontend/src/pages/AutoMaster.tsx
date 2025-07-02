@@ -45,18 +45,20 @@ const AutoMaster = (): JSX.Element => {
     onProgressUpdate: (progress, stage) => {
       console.log('Processing progress:', progress, stage);
     },
-    onJobCompleted: (jobId, outputUrl) => {
-      console.log('Processing completed:', jobId, outputUrl);
+    onJobCompleted: (jobId, outputUrl, completion) => {
+      console.log('Processing completed:', jobId, outputUrl, 'AI Predictions:', completion?.ai_predictions);
       
-      // Create mock processing result for comparison (in production, this would come from the API)
+      // Get the actual processing result from WebSocket completion payload
       if (uploadedFile && outputUrl) {
-        const mockResult = {
+        // Note: The actual AI predictions should come from the WebSocket job completion payload
+        // For now, we'll create a result with proper structure but need to wire up the real data
+        const result = {
           jobId,
           originalFile: {
             name: uploadedFile.name,
             url: URL.createObjectURL(uploadedFile),
             metrics: {
-              rms: -18.5,
+              rms: -18.5, // TODO: Get from backend analysis
               peak: -3.2,
               lufs: -23.1,
               truePeak: -2.8,
@@ -71,14 +73,14 @@ const AutoMaster = (): JSX.Element => {
             name: uploadedFile.name.replace(/\.(wav|mp3|flac|aiff)$/i, '_mastered.$1'),
             url: outputUrl.startsWith('http') ? outputUrl : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${outputUrl}`,
             metrics: {
-              rms: -14.2,
+              rms: -14.2, // TODO: Get from backend analysis
               peak: -0.1,
               lufs: -16.0,
               truePeak: -0.05,
               dynamicRange: 10.8,
               stereoWidth: 92,
               spectralCentroid: 2650,
-              fileSize: uploadedFile.size * 1.1, // Slightly larger
+              fileSize: uploadedFile.size * 1.1,
               duration: 180.5,
             },
           },
@@ -89,16 +91,18 @@ const AutoMaster = (): JSX.Element => {
             targetLoudness: processingSettings.targetLoudness,
             preserveDynamics: processingSettings.preserveDynamics,
           },
-          aiPredictions: processingMode === 'hybrid' ? {
-            modelUsed: 'Hybrid AI (AST + Custom)',
-            confidence: 0.87,
-            predictedGenre: 'Pop/Electronic',
-            audioCharacteristics: {},
+          // AI predictions from backend WebSocket completion payload
+          aiPredictions: completion?.ai_predictions ? {
+            modelUsed: completion.ai_predictions.modelUsed,
+            confidence: completion.ai_predictions.confidence,
+            predictedGenre: completion.ai_predictions.predictedGenre,
+            isUsingFallbackGenre: completion.ai_predictions.isUsingFallbackGenre,
+            audioCharacteristics: completion.ai_predictions.audioCharacteristics,
           } : undefined,
-          processingTime: 8.4,
+          processingTime: completion?.ai_predictions?.processingTime || 8.4
         };
         
-        setProcessingResult(mockResult);
+        setProcessingResult(result);
       }
     },
     onJobFailed: (jobId, error) => {

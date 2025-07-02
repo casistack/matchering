@@ -20,6 +20,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/download/{filename}")
+async def download_result_by_filename(filename: str) -> FileResponse:
+    """
+    Download a processed audio file by filename.
+    
+    Args:
+        filename: Name of the processed audio file
+        
+    Returns:
+        FileResponse: Processed audio file
+        
+    Raises:
+        HTTPException: If file not found
+    """
+    logger.info(f"Download requested for filename: {filename}")
+    
+    # Look for the file in results directory
+    results_dir = Path("results")
+    file_path = results_dir / filename
+    
+    logger.info(f"Looking for file: {file_path.absolute()}")
+    
+    if not file_path.exists():
+        logger.error(f"File not found: {file_path.absolute()}")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    
+    file_size = file_path.stat().st_size
+    logger.info(f"Serving file: {file_path} ({file_size} bytes)")
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type="audio/wav",
+        filename=filename
+    )
+
+
 @router.get("/{job_id}")
 async def get_processing_results(
     job_id: str,
