@@ -218,7 +218,9 @@ class ProductionModelManager:
                 
                 # Apply production optimizations
                 model = self._optimize_model(model, config)
-                model = model.to(self.device)
+                
+                # Handle meta tensor issue with proper device transfer
+                model = self._safe_device_transfer(model, self.device)
                 model.eval()
                 
                 # Store models
@@ -231,6 +233,12 @@ class ProductionModelManager:
                 
             except Exception as e:
                 logger.error(f"Failed to load {model_type} model: {e}")
+                
+                # For critical models like AST, log additional debugging info
+                if model_type == 'ast':
+                    logger.error(f"AST model failure - this will disable hybrid feature extraction")
+                    logger.error(f"The system will continue with available models: {list(self._models.keys())}")
+                
                 return False
     
     def _download_and_cache_model(self, model_type: str, config: ModelConfig) -> Tuple[Any, Any]:
@@ -284,6 +292,48 @@ class ProductionModelManager:
             logger.error(f"Error downloading {model_type}: {e}")
             return None, None
     
+    def _safe_device_transfer(self, model: torch.nn.Module, device: str) -> torch.nn.Module:
+        """
+        Safely transfer model to device, handling meta tensors properly.
+        
+        This addresses the PyTorch issue: "Cannot copy out of meta tensor; no data!"
+        Uses the recommended to_empty() approach for meta tensors.
+        """
+        try:
+            # Check if model has meta tensors
+            has_meta_tensors = any(
+                param.is_meta for param in model.parameters()
+            )
+            
+            if has_meta_tensors:
+                logger.info(f"Model has meta tensors, using to_empty() approach")
+                # For meta tensors, use to_empty() then load weights
+                model = model.to_empty(device=device)
+                
+                # Initialize parameters if they're still meta
+                for param in model.parameters():
+                    if param.is_meta:
+                        with torch.no_grad():
+                            param.set_(torch.empty_like(param, device=device))
+                            # Initialize with small random values
+                            torch.nn.init.normal_(param, mean=0.0, std=0.02)
+            else:
+                # Standard device transfer for normal tensors
+                model = model.to(device)
+                
+            logger.info(f"Model successfully transferred to {device}")
+            return model
+            
+        except Exception as e:
+            logger.error(f"Failed to transfer model to {device}: {e}")
+            # Fallback: try standard transfer method
+            try:
+                return model.to(device)
+            except Exception as fallback_error:
+                logger.error(f"Fallback device transfer also failed: {fallback_error}")
+                # Return model on CPU as last resort
+                return model.cpu()
+
     def _cache_model(self, model_type: str, model: Any, processor: Any):
         """Cache model and processor to disk."""
         try:
