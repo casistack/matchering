@@ -45,6 +45,9 @@ class MasteringParameters(BaseModel):
     
     # Confidence Score
     confidence: float = Field(description="Model confidence score (0.0 to 1.0)")
+    
+    # Metadata
+    is_using_fallback_genre: bool = Field(default=False, description="Whether fallback genre detection was used")
 
 
 class MasteringAI(nn.Module):

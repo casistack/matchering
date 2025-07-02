@@ -89,7 +89,7 @@ class ProductionModelManager:
             ),
             'clap': ModelConfig(
                 model_name='laion/clap-htsat-unfused',
-                feature_dim=512,
+                feature_dim=640,  # Actual CLAP output dimension
                 requires_spectrogram=False,
                 memory_mb=1800,  # ~1.8GB GPU memory
                 max_concurrent=3,
@@ -374,12 +374,14 @@ class ProductionModelManager:
     def _optimize_model(self, model: Any, config: ModelConfig) -> Any:
         """Apply production optimizations to model."""
         try:
-            # Apply quantization if enabled
-            if config.quantize and self.device == "cuda":
+            # Apply quantization if enabled (skip for CUDA due to compatibility issues)
+            if config.quantize and self.device != "cuda":
                 model = torch.quantization.quantize_dynamic(
                     model, {nn.Linear}, dtype=torch.qint8
                 )
                 logger.info(f"Applied quantization to model")
+            elif config.quantize and self.device == "cuda":
+                logger.info(f"Skipping quantization on CUDA due to compatibility issues")
             
             # Compile model for faster inference (PyTorch 2.0+)
             if hasattr(torch, 'compile'):

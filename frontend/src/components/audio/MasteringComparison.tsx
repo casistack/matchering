@@ -31,6 +31,7 @@ import {
   Equalizer,
   TrendingUp,
   Assessment,
+  InfoOutlined,
 } from '@mui/icons-material';
 import WaveformVisualizationV2 from './WaveformVisualizationV2';
 
@@ -70,6 +71,7 @@ interface ProcessingResult {
     confidence: number;
     predictedGenre: string;
     audioCharacteristics: any;
+    isUsingFallbackGenre?: boolean;
   };
   processingTime: number;
 }
@@ -209,8 +211,25 @@ const MasteringComparison = ({
               with <strong>{processingResult.processingSettings.intensity}</strong> intensity.
               {processingResult.aiPredictions && (
                 <>
-                  {' '}AI detected genre: <strong>{processingResult.aiPredictions.predictedGenre}</strong> 
-                  (confidence: {(processingResult.aiPredictions.confidence * 100).toFixed(1)}%)
+                  {' '}
+                  {processingResult.aiPredictions.isUsingFallbackGenre ? (
+                    <>
+                      Genre detected from filename/characteristics: <strong>{processingResult.aiPredictions.predictedGenre}</strong>
+                      <Chip 
+                        label="Fallback Detection" 
+                        size="small" 
+                        color="warning" 
+                        sx={{ ml: 1 }}
+                        icon={<InfoOutlined />}
+                        title="AI models were unavailable, using intelligent fallback detection based on filename and audio characteristics"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      AI detected genre: <strong>{processingResult.aiPredictions.predictedGenre}</strong> 
+                      (confidence: {(processingResult.aiPredictions.confidence * 100).toFixed(1)}%)
+                    </>
+                  )}
                 </>
               )}
             </Typography>
@@ -392,7 +411,12 @@ const MasteringComparison = ({
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Chip label={`Model: ${processingResult.aiPredictions.modelUsed}`} variant="outlined" size="small" />
-                  <Chip label={`Genre: ${processingResult.aiPredictions.predictedGenre}`} variant="outlined" size="small" />
+                  <Chip 
+                    label={`Genre: ${processingResult.aiPredictions.predictedGenre}`} 
+                    variant="outlined" 
+                    size="small"
+                    color={processingResult.aiPredictions.isUsingFallbackGenre ? "warning" : "default"}
+                  />
                   <Chip 
                     label={`Confidence: ${(processingResult.aiPredictions.confidence * 100).toFixed(1)}%`} 
                     variant="outlined" 

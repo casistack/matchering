@@ -200,9 +200,14 @@ class FeatureFusionNetwork(nn.Module):
         
         for model_type, feature_tensor in features.items():
             if model_type in self.projections and feature_tensor is not None:
-                projected = self.projections[model_type](feature_tensor)
-                projected_features.append(projected)
-                attention_features.append(projected.unsqueeze(1))  # Add sequence dim for attention
+                try:
+                    projected = self.projections[model_type](feature_tensor)
+                    projected_features.append(projected)
+                    attention_features.append(projected.unsqueeze(1))  # Add sequence dim for attention
+                except RuntimeError as e:
+                    logger.warning(f"Projection failed for {model_type} with shape {feature_tensor.shape}: {e}")
+                    # Skip this feature if projection fails
+                    continue
         
         if not projected_features:
             # Return zero tensor if no features available
@@ -236,9 +241,22 @@ class HybridFeatureExtractor:
     Hybrid feature extraction combining pre-trained models with custom features.
     """
     
-    def __init__(self, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
+    def __init__(
+        self, 
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        production_model_manager=None
+    ):
         self.device = device
-        self.model_loader = PretrainedModelLoader(device)
+        
+        # Use production model manager if provided, otherwise use legacy loader
+        if production_model_manager is not None:
+            self.production_model_manager = production_model_manager
+            self.use_production_manager = True
+            logger.info("Using production model manager for feature extraction")
+        else:
+            self.model_loader = PretrainedModelLoader(device)
+            self.use_production_manager = False
+            logger.info("Using legacy model loader for feature extraction")
         
         # Load our custom feature extractor
         try:
@@ -257,13 +275,24 @@ class HybridFeatureExtractor:
             logger.warning(f"Could not load custom feature extractor: {e}")
             self.custom_extractor = None
         
-        # Initialize feature fusion network
-        feature_dims = {
-            'ast': 768,
-            'wav2vec': 1024,
-            'clap': 512,
-            'custom': 128
-        }
+        # Initialize feature fusion network with production model dimensions
+        if self.use_production_manager and hasattr(production_model_manager, 'model_configs'):
+            # Use dimensions from production model manager
+            feature_dims = {
+                model_type: config.feature_dim 
+                for model_type, config in production_model_manager.model_configs.items()
+            }
+            # Note: CLAP actual output may differ from config, adjust if needed
+            feature_dims['custom'] = 128  # Add custom features
+            logger.info(f"Using production model feature dimensions: {feature_dims}")
+        else:
+            # Legacy feature dimensions
+            feature_dims = {
+                'ast': 768,
+                'wav2vec': 1024,
+                'clap': 512,
+                'custom': 128
+            }
         
         self.feature_fusion = FeatureFusionNetwork(feature_dims).to(device)
         self.model_availability = {}
@@ -271,9 +300,15 @@ class HybridFeatureExtractor:
     def _extract_ast_features(self, audio: torch.Tensor, sr: int) -> Optional[torch.Tensor]:
         """Extract features using Audio Spectrogram Transformer."""
         try:
-            model, processor = self.model_loader.load_model('ast')
-            if model is None:
-                return None
+            # Use production model manager if available
+            if self.use_production_manager:
+                model, processor = self.production_model_manager.get_model('ast')
+                if model is None:
+                    return None
+            else:
+                model, processor = self.model_loader.load_model('ast')
+                if model is None:
+                    return None
             
             # AST expects 16kHz audio
             if sr != 16000:
@@ -321,18 +356,30 @@ class HybridFeatureExtractor:
                 else:
                     features = outputs.pooler_output if hasattr(outputs, 'pooler_output') else outputs[0].mean(dim=1)
                 
+            # Release model when using production manager
+            if self.use_production_manager:
+                self.production_model_manager.release_model('ast')
+                
             return features.squeeze()
             
         except Exception as e:
             logger.warning(f"AST feature extraction failed: {e}")
+            if self.use_production_manager:
+                self.production_model_manager.release_model('ast')
             return None
     
     def _extract_wav2vec_features(self, audio: torch.Tensor, sr: int) -> Optional[torch.Tensor]:
         """Extract features using Wav2Vec 2.0."""
         try:
-            model, processor = self.model_loader.load_model('wav2vec')
-            if model is None:
-                return None
+            # Use production model manager if available
+            if self.use_production_manager:
+                model, processor = self.production_model_manager.get_model('wav2vec')
+                if model is None:
+                    return None
+            else:
+                model, processor = self.model_loader.load_model('wav2vec')
+                if model is None:
+                    return None
             
             # Resample to 16kHz if needed (Wav2Vec expects 16kHz)
             if sr != 16000:
@@ -355,18 +402,30 @@ class HybridFeatureExtractor:
                 # Pool over time dimension
                 features = outputs.last_hidden_state.mean(dim=1)
                 
+            # Release model when using production manager
+            if self.use_production_manager:
+                self.production_model_manager.release_model('wav2vec')
+                
             return features.squeeze()
             
         except Exception as e:
             logger.warning(f"Wav2Vec feature extraction failed: {e}")
+            if self.use_production_manager:
+                self.production_model_manager.release_model('wav2vec')
             return None
     
     def _extract_clap_features(self, audio: torch.Tensor, sr: int) -> Optional[torch.Tensor]:
         """Extract features using CLAP."""
         try:
-            model, processor = self.model_loader.load_model('clap')
-            if model is None:
-                return None
+            # Use production model manager if available
+            if self.use_production_manager:
+                model, processor = self.production_model_manager.get_model('clap')
+                if model is None:
+                    return None
+            else:
+                model, processor = self.model_loader.load_model('clap')
+                if model is None:
+                    return None
             
             # CLAP typically expects 48kHz
             target_sr = 48000
@@ -389,10 +448,19 @@ class HybridFeatureExtractor:
                 outputs = model.get_audio_features(**inputs)
                 features = outputs if isinstance(outputs, torch.Tensor) else outputs.last_hidden_state.mean(dim=1)
                 
+                # Debug: log actual feature dimensions
+                logger.info(f"CLAP features shape: {features.shape if hasattr(features, 'shape') else type(features)}")
+                
+            # Release model when using production manager
+            if self.use_production_manager:
+                self.production_model_manager.release_model('clap')
+                
             return features.squeeze()
             
         except Exception as e:
             logger.warning(f"CLAP feature extraction failed: {e}")
+            if self.use_production_manager:
+                self.production_model_manager.release_model('clap')
             return None
     
     async def _extract_custom_features(self, audio_path: str) -> Optional[Dict[str, Any]]:

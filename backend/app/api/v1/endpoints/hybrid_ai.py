@@ -14,7 +14,7 @@ import shutil
 import time
 import traceback
 import uuid
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING, Tuple
 from pathlib import Path
 
 import aiofiles
@@ -178,14 +178,25 @@ class ModelPerformanceResponse(BaseModel):
     recommendations: List[str] = Field(description="Performance optimization recommendations")
 
 
-async def get_hybrid_extractor() -> HybridFeatureExtractor:
+async def get_hybrid_extractor(request: Request = None) -> HybridFeatureExtractor:
     """Get or create hybrid feature extractor instance."""
     global hybrid_extractor
     
     if hybrid_extractor is None:
         logger.info("Initializing hybrid feature extractor...")
-        hybrid_extractor = HybridFeatureExtractor()
-        logger.info("Hybrid feature extractor initialized")
+        
+        # Get production model manager and pass it to the feature extractor
+        try:
+            prod_model_manager = get_production_model_manager(request)
+            hybrid_extractor = HybridFeatureExtractor(
+                production_model_manager=prod_model_manager
+            )
+            logger.info("Hybrid feature extractor initialized with production model manager")
+        except Exception as e:
+            logger.warning(f"Failed to get production model manager: {e}")
+            # Fallback to legacy initialization
+            hybrid_extractor = HybridFeatureExtractor()
+            logger.info("Hybrid feature extractor initialized with legacy loader")
     
     return hybrid_extractor
 
@@ -280,7 +291,7 @@ async def extract_hybrid_features(
         temp_file_path, checksum = await save_uploaded_file(file, temp_dir)
         
         # Get hybrid extractor
-        extractor = await get_hybrid_extractor()
+        extractor = await get_hybrid_extractor(request)
         
         logger.info(f"Starting hybrid feature extraction for {file.filename}")
         
@@ -364,8 +375,11 @@ async def select_optimal_model(
         model_name, confidence, reasoning = selector.select_model(characteristics)
         
         # Get list of available models
-        extractor = await get_hybrid_extractor()
-        available_models = list(extractor.model_loader.model_configs.keys()) + ['custom', 'ensemble']
+        extractor = await get_hybrid_extractor(request)
+        if extractor.use_production_manager:
+            available_models = list(extractor.production_model_manager.model_configs.keys()) + ['custom', 'ensemble']
+        else:
+            available_models = list(extractor.model_loader.model_configs.keys()) + ['custom', 'ensemble']
         
         return ModelSelectionResponse(
             recommended_model=model_name,
@@ -427,10 +441,19 @@ async def predict_mastering_parameters(
             # Use the selected model's features for prediction
             # This is where we'd implement model-specific heads in the future
         
+        # Use intelligent genre prediction based on audio characteristics and filename
+        genre_probs, predicted_genre, is_using_fallback = _predict_genre_from_audio_characteristics(
+            file.filename, characteristics
+        )
+        
+        # Log if using fallback detection
+        if is_using_fallback:
+            logger.info(f"Using fallback genre detection for {file.filename} - AI models unavailable")
+        
         # Create AI-predicted parameters with user-guided EQ
         predicted_params = MasteringParameters(
-            genre_probabilities={"pop": 0.7, "electronic": 0.2, "rock": 0.1},
-            predicted_genre="pop",
+            genre_probabilities=genre_probs,
+            predicted_genre=predicted_genre,
             eq_curve=_generate_ai_eq_curve(request, characteristics),  # AI-generated EQ
             compression_ratio=2.5,
             compression_attack=10.0,
@@ -441,7 +464,8 @@ async def predict_mastering_parameters(
             limiting_threshold=-1.0,
             limiting_release=30.0,
             limiting_ceiling=-0.1,
-            confidence=confidence
+            confidence=confidence,
+            is_using_fallback_genre=is_using_fallback
         )
         
         # Apply user preferences with improved intensity scaling
@@ -757,7 +781,7 @@ async def process_hybrid_mastering(
     summary="Get hybrid AI model performance metrics",
     description="Retrieve performance statistics for all hybrid AI models and system components."
 )
-async def get_model_performance() -> ModelPerformanceResponse:
+async def get_model_performance(request: Request) -> ModelPerformanceResponse:
     """
     Get comprehensive performance metrics for hybrid AI system.
     
@@ -766,10 +790,16 @@ async def get_model_performance() -> ModelPerformanceResponse:
     """
     try:
         # Get extractor
-        extractor = await get_hybrid_extractor()
+        extractor = await get_hybrid_extractor(request)
         
         # Collect model availability and basic stats
-        model_availability = extractor.model_loader.get_all_available_models()
+        if extractor.use_production_manager:
+            model_availability = {
+                model_type: model_type in extractor.production_model_manager._models
+                for model_type in extractor.production_model_manager.model_configs.keys()
+            }
+        else:
+            model_availability = extractor.model_loader.get_all_available_models()
         
         model_stats = {}
         for model_name, available in model_availability.items():
@@ -824,7 +854,7 @@ async def get_model_performance() -> ModelPerformanceResponse:
     summary="Get list of available AI models",
     description="Retrieve list of available AI models and their capabilities."
 )
-async def get_available_models() -> Dict:
+async def get_available_models(request: Request) -> Dict:
     """
     Get list of available AI models and their status.
     
@@ -832,8 +862,15 @@ async def get_available_models() -> Dict:
         Dictionary with model information and availability
     """
     try:
-        extractor = await get_hybrid_extractor()
-        model_availability = extractor.model_loader.get_all_available_models()
+        extractor = await get_hybrid_extractor(request)
+        if extractor.use_production_manager:
+            # Get model availability from production model manager
+            model_availability = {
+                model_type: model_type in extractor.production_model_manager._models
+                for model_type in extractor.production_model_manager.model_configs.keys()
+            }
+        else:
+            model_availability = extractor.model_loader.get_all_available_models()
         
         models_info = {
             "ast": {
@@ -924,8 +961,14 @@ async def health_check(request: Request):
             }
         
         # Fallback to checking hybrid extractor
-        extractor = await get_hybrid_extractor()
-        model_availability = extractor.model_loader.get_all_available_models()
+        extractor = await get_hybrid_extractor(request)
+        if extractor.use_production_manager:
+            model_availability = {
+                model_type: model_type in extractor.production_model_manager._models
+                for model_type in extractor.production_model_manager.model_configs.keys()
+            }
+        else:
+            model_availability = extractor.model_loader.get_all_available_models()
         
         return {
             "status": "healthy",
@@ -1400,6 +1443,100 @@ def _apply_gentle_compression(audio):
     except Exception as e:
         logger.warning(f"Gentle compression failed: {e}")
         return audio
+
+
+def _predict_genre_from_audio_characteristics(filename: str, characteristics: AudioCharacteristics) -> Tuple[Dict[str, float], str, bool]:
+    """
+    Predict genre based on audio characteristics and filename analysis.
+    
+    This function uses audio characteristics and filename patterns to make
+    intelligent genre predictions when AI models are unavailable.
+    
+    Returns:
+        Tuple of (genre_probabilities, predicted_genre, is_using_fallback)
+    """
+    try:
+        # Initialize genre probabilities
+        genre_probs = {
+            "rap": 0.1,
+            "hip-hop": 0.1, 
+            "pop": 0.15,
+            "electronic": 0.15,
+            "rock": 0.15,
+            "rnb": 0.1,
+            "jazz": 0.05,
+            "classical": 0.05,
+            "reggae": 0.05,
+            "other": 0.1
+        }
+        
+        # Analyze filename for genre hints
+        filename_lower = filename.lower() if filename else ""
+        
+        # Rap/Hip-hop indicators
+        rap_keywords = ["rap", "hip", "hop", "trap", "drill", "freestyle", "cypher", "bars", "respek", "craft"]
+        if any(keyword in filename_lower for keyword in rap_keywords):
+            genre_probs["rap"] = 0.6
+            genre_probs["hip-hop"] = 0.25
+            genre_probs["pop"] = 0.1
+            genre_probs["electronic"] = 0.05
+            
+        # Electronic/EDM indicators  
+        elif any(keyword in filename_lower for keyword in ["edm", "house", "techno", "trance", "dubstep", "electronic"]):
+            genre_probs["electronic"] = 0.7
+            genre_probs["pop"] = 0.15
+            genre_probs["rap"] = 0.1
+            genre_probs["rock"] = 0.05
+            
+        # Rock indicators
+        elif any(keyword in filename_lower for keyword in ["rock", "metal", "punk", "grunge", "alternative"]):
+            genre_probs["rock"] = 0.7
+            genre_probs["pop"] = 0.15
+            genre_probs["electronic"] = 0.1
+            genre_probs["rap"] = 0.05
+            
+        # R&B indicators
+        elif any(keyword in filename_lower for keyword in ["rnb", "r&b", "soul", "funk", "neo"]):
+            genre_probs["rnb"] = 0.6
+            genre_probs["pop"] = 0.2
+            genre_probs["rap"] = 0.15
+            genre_probs["jazz"] = 0.05
+        
+        # Use audio characteristics for additional hints
+        if characteristics.dynamic_range > 15:
+            # High dynamic range suggests jazz, classical, or acoustic
+            genre_probs["jazz"] += 0.1
+            genre_probs["classical"] += 0.1
+            genre_probs["pop"] -= 0.1
+            
+        if characteristics.energy_level > 0.7:
+            # High energy suggests electronic, rock, or rap
+            genre_probs["electronic"] += 0.1
+            genre_probs["rock"] += 0.1
+            genre_probs["rap"] += 0.1
+            genre_probs["pop"] -= 0.1
+            
+        # Normalize probabilities
+        total = sum(genre_probs.values())
+        if total > 0:
+            genre_probs = {k: v/total for k, v in genre_probs.items()}
+        
+        # Get the top genre
+        predicted_genre = max(genre_probs, key=genre_probs.get)
+        
+        # Convert to the format expected by the system (top 3 genres)
+        sorted_genres = sorted(genre_probs.items(), key=lambda x: x[1], reverse=True)[:3]
+        final_probs = {genre: prob for genre, prob in sorted_genres}
+        
+        logger.info(f"Genre prediction from characteristics: {predicted_genre} ({final_probs})")
+        
+        # Return with is_using_fallback=True to indicate this is a fallback prediction
+        return final_probs, predicted_genre, True
+        
+    except Exception as e:
+        logger.warning(f"Genre prediction from characteristics failed: {e}")
+        # Fallback to original hardcoded values
+        return {"pop": 0.7, "electronic": 0.2, "rock": 0.1}, "pop", True
 
 
 def _apply_moderate_compression(audio):
