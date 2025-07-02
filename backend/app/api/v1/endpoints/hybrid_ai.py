@@ -673,11 +673,14 @@ async def process_hybrid_mastering(
         )
         
         # Estimate completion time based on file size and processing mode
-        estimated_time = _estimate_processing_time(
+        estimated_duration_seconds = _estimate_processing_time(
             file_size=file.size or 0,
             processing_mode=request.processing_mode,
             model_used="auto"  # Will be determined in background
         )
+        
+        # Convert to timestamp (current time + estimated duration)
+        estimated_completion_timestamp = time.time() + estimated_duration_seconds
         
         processing_time = time.time() - start_time
         
@@ -729,7 +732,7 @@ async def process_hybrid_mastering(
             job_id=job_id,
             processing_mode=request.processing_mode,
             model_used="auto",  # Will be determined in background
-            estimated_completion_time=estimated_time,
+            estimated_completion_time=estimated_completion_timestamp,
             audio_characteristics=basic_characteristics,
             predicted_parameters=basic_parameters,
             processing_metadata={
@@ -1004,6 +1007,25 @@ async def _process_audio_background(
             logger.info(f"Starting background hybrid AI processing for job {job_id}")
             log_performance("background_processing_start", 0, "timestamp")
             
+            # Import WebSocket broadcast function
+            from app.api.v1.endpoints.processing import broadcast_message
+            
+            # Send initial progress update
+            try:
+                await broadcast_message(job_id, {
+                    "type": "progress_update",
+                    "payload": {
+                        "job_id": job_id,
+                        "progress_percentage": 5,
+                        "stage": "starting",
+                        "message": "Initializing AI processing..."
+                    },
+                    "timestamp": time.time(),
+                    "message_id": f"progress_{job_id}_{int(time.time())}"
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send initial progress: {e}")
+            
             # Step 1: Create a temporary UploadFile-like object from the saved file
             from fastapi import UploadFile
             
@@ -1032,8 +1054,40 @@ async def _process_audio_background(
             # Log the final user settings that will be processed
             log_user_settings(request_params, "background_processing")
             
+            # Send file loading progress
+            try:
+                await broadcast_message(job_id, {
+                    "type": "progress_update",
+                    "payload": {
+                        "job_id": job_id,
+                        "progress_percentage": 15,
+                        "stage": "loading",
+                        "message": "Loading audio file..."
+                    },
+                    "timestamp": time.time(),
+                    "message_id": f"progress_{job_id}_{int(time.time())}"
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send loading progress: {e}")
+            
             # Step 2: Extract features and predict parameters (this is the heavy part)
             logger.info(f"Extracting features for job {job_id}")
+            
+            # Send feature extraction progress
+            try:
+                await broadcast_message(job_id, {
+                    "type": "progress_update",
+                    "payload": {
+                        "job_id": job_id,
+                        "progress_percentage": 25,
+                        "stage": "feature_extraction",
+                        "message": "Extracting AI features from audio..."
+                    },
+                    "timestamp": time.time(),
+                    "message_id": f"progress_{job_id}_{int(time.time())}"
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send feature extraction progress: {e}")
             
             # Create a mock UploadFile for the prediction function
             class MockUploadFile:
@@ -1063,6 +1117,22 @@ async def _process_audio_background(
             
             logger.info(f"Feature extraction completed for job {job_id}")
             
+            # Send feature extraction completion progress
+            try:
+                await broadcast_message(job_id, {
+                    "type": "progress_update",
+                    "payload": {
+                        "job_id": job_id,
+                        "progress_percentage": 60,
+                        "stage": "ai_analysis",
+                        "message": "AI analysis completed, applying mastering..."
+                    },
+                    "timestamp": time.time(),
+                    "message_id": f"progress_{job_id}_{int(time.time())}"
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send AI analysis progress: {e}")
+            
             # Log AI prediction results
             predicted_params = prediction_response.get('predicted_parameters', {})
             audio_characteristics = prediction_response.get('audio_characteristics', {})
@@ -1075,6 +1145,22 @@ async def _process_audio_background(
                 confidence=model_confidence,
                 audio_characteristics=audio_characteristics
             )
+            
+            # Send mastering start progress
+            try:
+                await broadcast_message(job_id, {
+                    "type": "progress_update",
+                    "payload": {
+                        "job_id": job_id,
+                        "progress_percentage": 70,
+                        "stage": "mastering",
+                        "message": "Applying AI-guided mastering..."
+                    },
+                    "timestamp": time.time(),
+                    "message_id": f"progress_{job_id}_{int(time.time())}"
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send mastering progress: {e}")
             
             # Step 3: Apply actual AI-guided Matchering processing
             logger.info(f"Starting AI-guided audio mastering for job {job_id}")
@@ -1108,6 +1194,22 @@ async def _process_audio_background(
                     
                     logger.info(f"Mastered audio saved: {final_output_path}")
                     logger.info(f"Final output file size: {final_output_path.stat().st_size} bytes")
+                    
+                    # Send finalizing progress
+                    try:
+                        await broadcast_message(job_id, {
+                            "type": "progress_update",
+                            "payload": {
+                                "job_id": job_id,
+                                "progress_percentage": 95,
+                                "stage": "finalizing",
+                                "message": "Finalizing mastered audio..."
+                            },
+                            "timestamp": time.time(),
+                            "message_id": f"progress_{job_id}_{int(time.time())}"
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to send finalizing progress: {e}")
                     
                     # TODO: Store the result path in database for proper job-to-file mapping
                     # For now, we rely on file timestamps in results endpoint
