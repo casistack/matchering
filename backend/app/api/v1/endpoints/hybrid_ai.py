@@ -23,7 +23,7 @@ import soundfile as sf
 import torch
 import torchaudio
 from scipy import signal
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -523,7 +523,16 @@ async def predict_mastering_parameters(
 async def process_hybrid_mastering(
     http_request: Request,
     file: UploadFile = File(..., description="Audio file to master"),
-    request: HybridMasteringRequest = Depends(),
+    # Form parameters for HybridMasteringRequest
+    model_preference: Optional[str] = Form(default="auto"),
+    user_style: Optional[str] = Form(default=None),
+    processing_mode: str = Form(default="hybrid"),
+    intensity_level: str = Form(default="medium"),
+    eq_style: str = Form(default="balanced"),
+    preserve_dynamics: str = Form(default="true"),
+    target_loudness_lufs: float = Form(default=-16.0),
+    reference_file_id: Optional[str] = Form(default=None),
+    # Dependencies
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_db)
 ) -> HybridMasteringResponse:
@@ -557,6 +566,27 @@ async def process_hybrid_mastering(
     }
     
     try:
+        # Debug: Log received form parameters
+        logger.info(f"Received form parameters: model_preference={model_preference}, "
+                   f"processing_mode={processing_mode}, intensity_level={intensity_level}, "
+                   f"eq_style={eq_style}, preserve_dynamics={preserve_dynamics}, "
+                   f"target_loudness_lufs={target_loudness_lufs}")
+        
+        # Convert string boolean to actual boolean
+        preserve_dynamics_bool = preserve_dynamics.lower() == "true"
+        
+        # Construct HybridMasteringRequest from form parameters
+        request = HybridMasteringRequest(
+            model_preference=model_preference,
+            user_style=user_style,
+            processing_mode=processing_mode,
+            intensity_level=intensity_level,
+            eq_style=eq_style,
+            preserve_dynamics=preserve_dynamics_bool,
+            target_loudness_lufs=target_loudness_lufs,
+            reference_file_id=reference_file_id
+        )
+        
         with enterprise_logger.request_context(request_data) as req_ctx:
             # Log user settings immediately
             user_settings = request.dict()

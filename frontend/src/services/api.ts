@@ -391,6 +391,7 @@ export const hybridAI = {
     userStyle?: string;
     processingMode?: string;
     intensityLevel?: string;
+    eqStyle?: string;
     preserveDynamics?: boolean;
     targetLoudnessLufs?: number;
     referenceFileId?: string;
@@ -418,6 +419,9 @@ export const hybridAI = {
     }
     if (options.intensityLevel) {
       formData.append('intensity_level', options.intensityLevel);
+    }
+    if (options.eqStyle) {
+      formData.append('eq_style', options.eqStyle);
     }
     if (options.preserveDynamics !== undefined) {
       formData.append('preserve_dynamics', options.preserveDynamics ? 'true' : 'false');

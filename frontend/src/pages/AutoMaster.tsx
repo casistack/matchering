@@ -12,7 +12,7 @@ import useProcessingJob from '@/hooks/useProcessingJob';
 import type { ProcessingMode, ProcessingSettings, AudioTrack } from '@/types';
 
 const AutoMaster = (): JSX.Element => {
-  const [processingMode, setProcessingMode] = useState<ProcessingMode>('auto');
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('hybrid');
   const [processingSettings, setProcessingSettings] = useState<ProcessingSettings>({
     intensity: 'medium',
     eqStyle: 'balanced',
@@ -151,6 +151,12 @@ const AutoMaster = (): JSX.Element => {
     try {
       console.log('Starting processing with settings:', processingSettings);
       console.log('Processing mode:', processingMode);
+      
+      // Validate reference mode
+      if (processingMode === 'reference') {
+        alert('Reference mode requires a reference file. Please upload a reference file or use Hybrid mode for AI-guided processing.');
+        return;
+      }
       
       // Use file for hybrid mode, fileId for other modes
       const fileInput = processingMode === 'hybrid' ? uploadedFile! : uploadedFileId!;

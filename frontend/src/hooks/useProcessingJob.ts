@@ -172,6 +172,7 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
           modelPreference: 'auto',
           processingMode: mode,
           intensityLevel: settings.intensity,
+          eqStyle: settings.eqStyle,  // Add the missing eq_style field
           preserveDynamics: settings.preserveDynamics,
           targetLoudnessLufs: settings.targetLoudness,
           referenceFileId,
