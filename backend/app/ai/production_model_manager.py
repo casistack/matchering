@@ -70,11 +70,11 @@ class ProductionModelManager:
         # Production model configurations
         self.model_configs = {
             'ast': ModelConfig(
-                model_name='MIT/ast-finetuned-audioset-10-10-0.4593',
+                model_name='m3hrdadfi/wav2vec2-base-100k-gtzan-music-genres',
                 feature_dim=768,
-                requires_spectrogram=True,
-                memory_mb=2800,  # ~2.8GB GPU memory
-                max_concurrent=2,
+                requires_spectrogram=False,  # Wav2Vec2 uses raw audio
+                memory_mb=1200,  # Smaller model, less memory
+                max_concurrent=3,
                 cache_features=True,
                 quantize=True
             ),
@@ -248,7 +248,7 @@ class ProductionModelManager:
             if model_type == 'clap':
                 try:
                     # CLAP requires specific loading
-                    import laion_clap
+                    import laion_clap # type: ignore
                     model = laion_clap.CLAP_Module(enable_fusion=False)
                     model.load_ckpt()  # This downloads and loads the model
                     processor = None  # CLAP handles its own processing

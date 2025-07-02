@@ -1289,14 +1289,19 @@ async def _create_virtual_reference(
         target_lufs = mastering_request.target_loudness_lufs or -16.0
         current_rms = np.sqrt(np.mean(audio**2))
         
-        # Improved loudness scaling with proper LUFS conversion
+        # FIXED: Proper LUFS to linear scale conversion
         if current_rms > 0:
-            # More accurate LUFS to linear scale conversion
-            # LUFS = -0.691 + 10*log10(mean(audio^2))
-            target_linear = 10**((target_lufs + 0.691) / 20.0)
-            loudness_scale = target_linear / current_rms
-            # Clamp scaling to prevent extreme values
-            loudness_scale = np.clip(loudness_scale, 0.1, 10.0)
+            # Correct LUFS to linear power conversion
+            # LUFS is approximately: -0.691 + 10*log10(mean_square)
+            # For power conversion, use /10.0 not /20.0
+            current_lufs = -0.691 + 10 * np.log10(current_rms**2)
+            lufs_difference = target_lufs - current_lufs
+            loudness_scale = 10**(lufs_difference / 20.0)  # 20.0 for amplitude conversion
+            
+            # Conservative clamping for safety
+            loudness_scale = np.clip(loudness_scale, 0.1, 5.0)
+            
+            logger.info(f"LUFS conversion: current={current_lufs:.1f}, target={target_lufs:.1f}, scale={loudness_scale:.3f}")
             reference_audio = reference_audio * loudness_scale
             logger.info(f"Applied loudness scaling: {loudness_scale:.3f} for target {target_lufs} LUFS")
         
