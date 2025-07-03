@@ -231,6 +231,11 @@ export class JobProgressWebSocket {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
       console.log(`[WebSocket] Received message:`, message);
+      
+      // Log progress updates specifically with detailed payload
+      if (message.type === 'progress_update') {
+        console.log(`[WebSocket] PROGRESS UPDATE - Progress: ${message.payload.progress_percentage}%, Stage: ${message.payload.current_stage}, Status: ${message.payload.status}`);
+      }
 
       switch (message.type) {
         case 'connection_established':

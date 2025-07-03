@@ -130,15 +130,20 @@ export const useJobProgress = (options: UseJobProgressOptions = {}): UseJobProgr
    * Handle progress updates
    */
   const handleProgressUpdate = useCallback((payload: ProcessingProgressPayload) => {
-    setState(prev => ({
-      ...prev,
-      progress: payload.progress_percentage,
-      currentStage: payload.current_stage,
-      status: payload.status,
-      message: payload.message,
-      elapsedTime: payload.elapsed_time,
-      remainingTime: payload.remaining_time,
-    }));
+    console.log(`[JobProgress] PROGRESS UPDATE HANDLER - Received: ${payload.progress_percentage}%, Stage: ${payload.current_stage}, Status: ${payload.status}`);
+    
+    setState(prev => {
+      console.log(`[JobProgress] STATE UPDATE - Previous progress: ${prev.progress}%, New progress: ${payload.progress_percentage}%`);
+      return {
+        ...prev,
+        progress: payload.progress_percentage,
+        currentStage: payload.current_stage,
+        status: payload.status,
+        message: payload.message,
+        elapsedTime: payload.elapsed_time,
+        remainingTime: payload.remaining_time,
+      };
+    });
 
     // Call user callback
     optionsRef.current.onProgressUpdate?.(payload);

@@ -197,7 +197,7 @@ const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
               {state.estimatedCompletion && (
                 <>
                   <br />
-                  Estimated completion: {new Date(state.estimatedCompletion).toLocaleTimeString()}
+                  Estimated completion: {new Date(state.estimatedCompletion * 1000).toLocaleTimeString()}
                 </>
               )}
             </Alert>

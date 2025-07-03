@@ -1044,8 +1044,11 @@ async def _process_audio_background(
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 5,
-                        "stage": "starting",
-                        "message": "Initializing AI processing..."
+                        "current_stage": "starting",
+                        "status": "processing",
+                        "message": "Initializing AI processing...",
+                        "elapsed_time": 0,
+                        "remaining_time": 0
                     },
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
@@ -1091,8 +1094,11 @@ async def _process_audio_background(
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 15,
-                        "stage": "loading",
-                        "message": "Loading audio file..."
+                        "current_stage": "loading",
+                        "status": "processing",
+                        "message": "Loading audio file...",
+                        "elapsed_time": int(time.time() - proc_ctx.start_time),
+                        "remaining_time": 0
                     },
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
@@ -1113,13 +1119,18 @@ async def _process_audio_background(
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 25,
-                        "stage": "feature_extraction",
-                        "message": "Extracting AI features from audio..."
+                        "current_stage": "feature_extraction",
+                        "status": "processing",
+                        "message": "Extracting AI features from audio...",
+                        "elapsed_time": int(time.time() - proc_ctx.start_time),
+                        "remaining_time": 0
                     },
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
                 logger.error(f"[DEBUG] Successfully sent 25% progress update for job {job_id}")
+                # Allow time for frontend to process this update
+                await asyncio.sleep(0.5)
             except Exception as e:
                 logger.error(f"[DEBUG] Failed to send feature extraction progress: {e}")
                 logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
@@ -1160,13 +1171,18 @@ async def _process_audio_background(
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 60,
-                        "stage": "ai_analysis",
-                        "message": "AI analysis completed, applying mastering..."
+                        "current_stage": "ai_analysis",
+                        "status": "processing",
+                        "message": "AI analysis completed, applying mastering...",
+                        "elapsed_time": int(time.time() - proc_ctx.start_time),
+                        "remaining_time": 0
                     },
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
                 logger.error(f"[DEBUG] Successfully sent 60% progress update for job {job_id}")
+                # Allow time for frontend to process this update
+                await asyncio.sleep(0.5)
             except Exception as e:
                 logger.error(f"[DEBUG] Failed to send AI analysis progress: {e}")
                 logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
@@ -1192,13 +1208,18 @@ async def _process_audio_background(
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 70,
-                        "stage": "mastering",
-                        "message": "Applying AI-guided mastering..."
+                        "current_stage": "mastering",
+                        "status": "processing",
+                        "message": "Applying AI-guided mastering...",
+                        "elapsed_time": int(time.time() - proc_ctx.start_time),
+                        "remaining_time": 0
                     },
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
                 logger.error(f"[DEBUG] Successfully sent 70% progress update for job {job_id}")
+                # Allow time for frontend to process this update
+                await asyncio.sleep(0.5)
             except Exception as e:
                 logger.error(f"[DEBUG] Failed to send mastering progress: {e}")
                 logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
@@ -1244,13 +1265,18 @@ async def _process_audio_background(
                             "payload": {
                                 "job_id": job_id,
                                 "progress_percentage": 95,
-                                "stage": "finalizing",
-                                "message": "Finalizing mastered audio..."
+                                "current_stage": "finalizing",
+                                "status": "processing",
+                                "message": "Finalizing mastered audio...",
+                                "elapsed_time": int(time.time() - proc_ctx.start_time),
+                                "remaining_time": 0
                             },
                             "timestamp": time.time(),
                             "message_id": f"progress_{job_id}_{int(time.time())}"
                         })
                         logger.error(f"[DEBUG] Successfully sent 95% progress update for job {job_id}")
+                        # Allow time for frontend to process this update
+                        await asyncio.sleep(0.5)
                     except Exception as e:
                         logger.error(f"[DEBUG] Failed to send finalizing progress: {e}")
                         logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
