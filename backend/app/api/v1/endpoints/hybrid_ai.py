@@ -478,22 +478,22 @@ async def predict_mastering_parameters(
                 # Get production model manager
                 model_manager = get_production_model_manager()
                 
-                # Attempt AI-powered genre detection
-                logger.info(f"🔍 Attempting AI genre detection for {file.filename}")
-                ai_genre_probs, ai_predicted_genre, ai_fallback = await _predict_genre_from_ai_models(
+                # Enterprise AI-powered genre detection with ensemble approach
+                logger.info(f"🚀 Attempting Enterprise Ensemble AI genre detection for {file.filename}")
+                ai_genre_probs, ai_predicted_genre, ai_fallback = await _predict_genre_with_ensemble_ai(
                     hybrid_features_obj, model_manager, file.filename
                 )
                 
-                logger.info(f"🔍 AI detection result: fallback={ai_fallback}, genre={ai_predicted_genre}")
+                logger.info(f"🎯 Ensemble AI detection result: fallback={ai_fallback}, genre={ai_predicted_genre}")
                 
                 if not ai_fallback and ai_genre_probs and ai_predicted_genre:
                     # AI detection successful!
                     genre_probs = ai_genre_probs
                     predicted_genre = ai_predicted_genre
                     is_using_fallback = False
-                    logger.info(f"✅ AI genre detection successful for {file.filename}: {predicted_genre}")
+                    logger.info(f"✅ Enterprise AI genre detection successful for {file.filename}: {predicted_genre}")
                 else:
-                    logger.warning(f"🔍 AI detection failed: fallback={ai_fallback}, genre={ai_predicted_genre}, probs={bool(ai_genre_probs)}")
+                    logger.warning(f"🔍 Enterprise AI detection failed: fallback={ai_fallback}, genre={ai_predicted_genre}, probs={bool(ai_genre_probs)}")
                 
         except Exception as e:
             logger.warning(f"AI genre detection attempt failed for {file.filename}: {e}")
@@ -1843,6 +1843,95 @@ async def _predict_genre_from_ai_models(
         logger.warning(f"AI genre prediction failed for {filename}: {e}")
         logger.debug(f"AI genre prediction error details: {traceback.format_exc()}")
         return None, None, True
+
+
+async def _predict_genre_with_ensemble_ai(
+    hybrid_features, 
+    production_model_manager, 
+    filename: str
+) -> Tuple[Dict[str, float], str, bool]:
+    """
+    Enterprise-grade ensemble AI genre prediction with 95%+ accuracy target.
+    
+    This function uses an ensemble approach combining multiple AI models:
+    1. Primary: CNN Ensemble Model (95%+ accuracy target)
+    2. Secondary: AST Model (proven backup)
+    3. Graceful fallback to characteristics if all AI fails
+    
+    Args:
+        hybrid_features: HybridFeatures object with extracted AI features
+        production_model_manager: Production model manager instance
+        filename: Audio filename for logging
+        
+    Returns:
+        Tuple of (genre_probabilities, predicted_genre, is_using_fallback)
+    """
+    try:
+        # Check if ensemble AI is enabled via configuration
+        from app.ai.ensemble_config import EnsembleSettings
+        
+        if not EnsembleSettings.is_ensemble_enabled():
+            logger.info(f"🔄 Ensemble AI disabled, falling back to AST model for {filename}")
+            return await _predict_genre_from_ai_models(
+                hybrid_features, production_model_manager, filename
+            )
+        
+        # Initialize ensemble classifier (cached globally for performance)
+        if not hasattr(_predict_genre_with_ensemble_ai, '_ensemble_classifier'):
+            from app.ai.ensemble_genre_classifier import EnsembleGenreClassifier
+            _predict_genre_with_ensemble_ai._ensemble_classifier = EnsembleGenreClassifier(
+                production_model_manager=production_model_manager
+            )
+            logger.info("Enterprise Ensemble Classifier initialized")
+        
+        ensemble_classifier = _predict_genre_with_ensemble_ai._ensemble_classifier
+        
+        # Get enterprise-grade prediction
+        logger.info(f"🎯 Running enterprise ensemble prediction for {filename}")
+        prediction = await ensemble_classifier.predict_genre(hybrid_features, filename)
+        
+        # Log prediction details
+        logger.info(f"🚀 Enterprise prediction for {filename}:")
+        logger.info(f"   Genre: {prediction.predicted_genre}")
+        logger.info(f"   Confidence: {prediction.confidence:.3f}")
+        logger.info(f"   Model used: {prediction.model_used.name}")
+        logger.info(f"   Processing time: {prediction.processing_time_ms:.1f}ms")
+        if prediction.ensemble_agreement:
+            logger.info(f"   Model agreement: {prediction.ensemble_agreement:.3f}")
+        
+        # Enterprise logging for monitoring
+        log_ai_prediction(
+            model_name=f"ensemble_{prediction.model_used.name.lower()}",
+            prediction_data={
+                "predicted_genre": prediction.predicted_genre,
+                "confidence": prediction.confidence,
+                "model_used": prediction.model_used.name,
+                "processing_time_ms": prediction.processing_time_ms,
+                "ensemble_agreement": prediction.ensemble_agreement,
+                "fallback_reason": prediction.fallback_reason
+            },
+            confidence=prediction.confidence,
+            processing_time=prediction.processing_time_ms
+        )
+        
+        # Determine if this is a fallback
+        is_fallback = prediction.model_used == prediction.model_used.TERTIARY
+        
+        return prediction.genre_probabilities, prediction.predicted_genre, is_fallback
+        
+    except Exception as e:
+        logger.error(f"Enterprise ensemble prediction failed for {filename}: {e}")
+        logger.error(f"Ensemble error details: {traceback.format_exc()}")
+        
+        # Fallback to original AST model if ensemble fails
+        logger.info(f"🔄 Falling back to original AST model for {filename}")
+        try:
+            return await _predict_genre_from_ai_models(
+                hybrid_features, production_model_manager, filename
+            )
+        except Exception as fallback_error:
+            logger.error(f"AST fallback also failed for {filename}: {fallback_error}")
+            return None, None, True
 
 
 def _predict_genre_from_audio_characteristics(filename: str, characteristics: AudioCharacteristics) -> Tuple[Dict[str, float], str, bool]:
