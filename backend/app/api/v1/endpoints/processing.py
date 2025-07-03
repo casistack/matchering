@@ -57,10 +57,12 @@ class WebSocketManager:
     
     async def connect(self, websocket: WebSocket, job_id: str):
         """Connect a WebSocket for a specific job."""
+        logger.error(f"[DEBUG] WebSocketManager.connect called for job {job_id}")
         await websocket.accept()
         if job_id not in self.active_connections:
             self.active_connections[job_id] = []
         self.active_connections[job_id].append(websocket)
+        logger.error(f"[DEBUG] WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
         logger.info(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
     
     def disconnect(self, websocket: WebSocket, job_id: str):
@@ -943,11 +945,16 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
         job_id: Processing job identifier
     """
     try:
+        logger.error(f"[DEBUG] WebSocket connection attempt for job {job_id}")
+        print(f"[DEBUG] WebSocket connection attempt for job {job_id}")
+        
         # Validate job exists
         validate_uuid_string(job_id, "job_id")
         
         # Connect to WebSocket manager
+        logger.error(f"[DEBUG] Connecting WebSocket for job {job_id}")
         await websocket_manager.connect(websocket, job_id)
+        logger.error(f"[DEBUG] WebSocket connected successfully for job {job_id}")
         
         # Send initial status
         initial_status = {

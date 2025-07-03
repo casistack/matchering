@@ -1007,6 +1007,10 @@ async def _process_audio_background(
             logger.info(f"Starting background hybrid AI processing for job {job_id}")
             log_performance("background_processing_start", 0, "timestamp")
             
+            # DEBUG: Add explicit logging to verify background task execution
+            print(f"[DEBUG] Background task started for job {job_id}")
+            logger.error(f"[DEBUG] Background task started for job {job_id} - This should be visible in logs")
+            
             # Import WebSocket broadcast function
             from app.api.v1.endpoints.processing import broadcast_message, websocket_manager
             
@@ -1017,22 +1021,26 @@ async def _process_audio_background(
             # Additional check to ensure WebSocket connection is ready
             retry_count = 0
             max_retries = 10
+            logger.error(f"[DEBUG] Starting WebSocket connection check for job {job_id}")
+            logger.error(f"[DEBUG] Current active connections: {list(websocket_manager.active_connections.keys())}")
+            
             while retry_count < max_retries:
                 if job_id in websocket_manager.active_connections and websocket_manager.active_connections[job_id]:
-                    logger.info(f"WebSocket connection confirmed ready for job {job_id}")
+                    logger.error(f"[DEBUG] WebSocket connection confirmed ready for job {job_id}")
                     break
-                logger.info(f"Waiting for WebSocket connection for job {job_id}, retry {retry_count + 1}/{max_retries}")
+                logger.error(f"[DEBUG] Waiting for WebSocket connection for job {job_id}, retry {retry_count + 1}/{max_retries}")
                 await asyncio.sleep(0.2)
                 retry_count += 1
             
             if retry_count >= max_retries:
-                logger.warning(f"WebSocket connection not ready after {max_retries} retries for job {job_id}")
+                logger.error(f"[DEBUG] WebSocket connection not ready after {max_retries} retries for job {job_id}")
+                logger.error(f"[DEBUG] Final active connections: {list(websocket_manager.active_connections.keys())}")
             
             # Send initial progress update
             try:
-                logger.info(f"Attempting to send initial progress update for job {job_id}")
+                logger.error(f"[DEBUG] Attempting to send initial progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update",
+                    "type": "progress_update", 
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 5,
@@ -1042,10 +1050,10 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
-                logger.info(f"Successfully sent initial progress update for job {job_id}")
+                logger.error(f"[DEBUG] Successfully sent initial progress update for job {job_id}")
             except Exception as e:
-                logger.error(f"Failed to send initial progress: {e}")
-                logger.error(f"Full traceback: {traceback.format_exc()}")
+                logger.error(f"[DEBUG] Failed to send initial progress: {e}")
+                logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             
             # Step 1: Create a temporary UploadFile-like object from the saved file
             from fastapi import UploadFile
@@ -1077,6 +1085,7 @@ async def _process_audio_background(
             
             # Send file loading progress
             try:
+                logger.error(f"[DEBUG] Attempting to send 15% progress update for job {job_id}")
                 await broadcast_message(job_id, {
                     "type": "progress_update",
                     "payload": {
@@ -1088,14 +1097,17 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
+                logger.error(f"[DEBUG] Successfully sent 15% progress update for job {job_id}")
             except Exception as e:
-                logger.warning(f"Failed to send loading progress: {e}")
+                logger.error(f"[DEBUG] Failed to send loading progress: {e}")
+                logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             
             # Step 2: Extract features and predict parameters (this is the heavy part)
             logger.info(f"Extracting features for job {job_id}")
             
             # Send feature extraction progress
             try:
+                logger.error(f"[DEBUG] Attempting to send 25% progress update for job {job_id}")
                 await broadcast_message(job_id, {
                     "type": "progress_update",
                     "payload": {
@@ -1107,8 +1119,10 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
+                logger.error(f"[DEBUG] Successfully sent 25% progress update for job {job_id}")
             except Exception as e:
-                logger.warning(f"Failed to send feature extraction progress: {e}")
+                logger.error(f"[DEBUG] Failed to send feature extraction progress: {e}")
+                logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             
             # Create a mock UploadFile for the prediction function
             class MockUploadFile:
@@ -1140,6 +1154,7 @@ async def _process_audio_background(
             
             # Send feature extraction completion progress
             try:
+                logger.error(f"[DEBUG] Attempting to send 60% progress update for job {job_id}")
                 await broadcast_message(job_id, {
                     "type": "progress_update",
                     "payload": {
@@ -1151,8 +1166,10 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
+                logger.error(f"[DEBUG] Successfully sent 60% progress update for job {job_id}")
             except Exception as e:
-                logger.warning(f"Failed to send AI analysis progress: {e}")
+                logger.error(f"[DEBUG] Failed to send AI analysis progress: {e}")
+                logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             
             # Log AI prediction results
             predicted_params = prediction_response.get('predicted_parameters', {})
@@ -1169,6 +1186,7 @@ async def _process_audio_background(
             
             # Send mastering start progress
             try:
+                logger.error(f"[DEBUG] Attempting to send 70% progress update for job {job_id}")
                 await broadcast_message(job_id, {
                     "type": "progress_update",
                     "payload": {
@@ -1180,8 +1198,10 @@ async def _process_audio_background(
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
+                logger.error(f"[DEBUG] Successfully sent 70% progress update for job {job_id}")
             except Exception as e:
-                logger.warning(f"Failed to send mastering progress: {e}")
+                logger.error(f"[DEBUG] Failed to send mastering progress: {e}")
+                logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             
             # Step 3: Apply actual AI-guided Matchering processing
             logger.info(f"Starting AI-guided audio mastering for job {job_id}")
@@ -1218,6 +1238,7 @@ async def _process_audio_background(
                     
                     # Send finalizing progress
                     try:
+                        logger.error(f"[DEBUG] Attempting to send 95% progress update for job {job_id}")
                         await broadcast_message(job_id, {
                             "type": "progress_update",
                             "payload": {
@@ -1229,8 +1250,10 @@ async def _process_audio_background(
                             "timestamp": time.time(),
                             "message_id": f"progress_{job_id}_{int(time.time())}"
                         })
+                        logger.error(f"[DEBUG] Successfully sent 95% progress update for job {job_id}")
                     except Exception as e:
-                        logger.warning(f"Failed to send finalizing progress: {e}")
+                        logger.error(f"[DEBUG] Failed to send finalizing progress: {e}")
+                        logger.error(f"[DEBUG] Full traceback: {traceback.format_exc()}")
                     
                     # TODO: Store the result path in database for proper job-to-file mapping
                     # For now, we rely on file timestamps in results endpoint
