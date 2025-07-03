@@ -1040,7 +1040,7 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send initial progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update", 
+                    "type": "processing_progress", 
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 5,
@@ -1090,7 +1090,7 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 15% progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update",
+                    "type": "processing_progress",
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 15,
@@ -1115,7 +1115,7 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 25% progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update",
+                    "type": "processing_progress",
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 25,
@@ -1167,7 +1167,7 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 60% progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update",
+                    "type": "processing_progress",
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 60,
@@ -1204,7 +1204,7 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 70% progress update for job {job_id}")
                 await broadcast_message(job_id, {
-                    "type": "progress_update",
+                    "type": "processing_progress",
                     "payload": {
                         "job_id": job_id,
                         "progress_percentage": 70,
@@ -1261,7 +1261,7 @@ async def _process_audio_background(
                     try:
                         logger.error(f"[DEBUG] Attempting to send 95% progress update for job {job_id}")
                         await broadcast_message(job_id, {
-                            "type": "progress_update",
+                            "type": "processing_progress",
                             "payload": {
                                 "job_id": job_id,
                                 "progress_percentage": 95,
