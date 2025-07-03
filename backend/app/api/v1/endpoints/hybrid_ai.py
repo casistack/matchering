@@ -1008,10 +1008,25 @@ async def _process_audio_background(
             log_performance("background_processing_start", 0, "timestamp")
             
             # Import WebSocket broadcast function
-            from app.api.v1.endpoints.processing import broadcast_message
+            from app.api.v1.endpoints.processing import broadcast_message, websocket_manager
             
-            # Wait a moment for WebSocket connection to establish
-            await asyncio.sleep(0.1)
+            # Wait longer for WebSocket connection to fully establish
+            # This prevents race condition where progress messages are sent before client connects
+            await asyncio.sleep(1.0)
+            
+            # Additional check to ensure WebSocket connection is ready
+            retry_count = 0
+            max_retries = 10
+            while retry_count < max_retries:
+                if job_id in websocket_manager.active_connections and websocket_manager.active_connections[job_id]:
+                    logger.info(f"WebSocket connection confirmed ready for job {job_id}")
+                    break
+                logger.info(f"Waiting for WebSocket connection for job {job_id}, retry {retry_count + 1}/{max_retries}")
+                await asyncio.sleep(0.2)
+                retry_count += 1
+            
+            if retry_count >= max_retries:
+                logger.warning(f"WebSocket connection not ready after {max_retries} retries for job {job_id}")
             
             # Send initial progress update
             try:
