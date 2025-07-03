@@ -67,9 +67,9 @@ class EnsembleSettings:
     @classmethod
     def is_ensemble_enabled(cls) -> bool:
         """Check if ensemble AI should be used."""
-        return cls.ENABLE_ENSEMBLE_AI and cls.ENABLE_CNN_ENSEMBLE
+        return cls.ENABLE_ENSEMBLE_AI and cls.ENABLE_HUGGINGFACE_MODELS
     
     @classmethod
     def should_fallback_to_ast(cls) -> bool:
         """Check if we should fallback to AST model only."""
-        return not cls.ENABLE_ENSEMBLE_AI or not cls.ENABLE_CNN_ENSEMBLE
+        return not cls.ENABLE_ENSEMBLE_AI or not cls.ENABLE_HUGGINGFACE_MODELS

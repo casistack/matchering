@@ -49,11 +49,17 @@ class HybridFeatures(BaseModel):
     # Fused features
     fused_features: Optional[List[float]] = Field(default=None, description="Fused multi-modal features")
     
+    # Raw audio data for HuggingFace models
+    audio_array: Optional[np.ndarray] = Field(default=None, description="Raw audio array for HuggingFace models")
+    
     # Metadata
     audio_length: float = Field(description="Audio length in seconds")
     sample_rate: int = Field(description="Audio sample rate")
     model_availability: Dict[str, bool] = Field(description="Which models were successfully used")
     extraction_time: float = Field(description="Total feature extraction time")
+    
+    class Config:
+        arbitrary_types_allowed = True  # Allow numpy arrays
 
 
 class AudioCharacteristics(BaseModel):
@@ -498,6 +504,21 @@ class HybridFeatureExtractor:
             # Calculate extraction time
             extraction_time = time.time() - start_time
             
+            # Prepare audio array for HuggingFace models (resample to 16kHz)
+            audio_array_for_hf = None
+            try:
+                if sr != 16000:
+                    resampler = torchaudio.transforms.Resample(sr, 16000)
+                    audio_16k = resampler(audio)
+                else:
+                    audio_16k = audio
+                
+                # Convert to numpy array (mono, 16kHz)
+                audio_array_for_hf = audio_16k.squeeze().cpu().numpy()
+                logger.debug(f"Audio array prepared for HuggingFace models: {audio_array_for_hf.shape}")
+            except Exception as e:
+                logger.warning(f"Failed to prepare audio array for HuggingFace models: {e}")
+            
             # Create HybridFeatures object
             hybrid_features = HybridFeatures(
                 ast_features=ast_features.tolist() if ast_features is not None else None,
@@ -505,6 +526,7 @@ class HybridFeatureExtractor:
                 musicgen_features=None,  # TODO: Implement MusicGen extraction
                 custom_features=custom_features,
                 fused_features=fused_features.tolist() if fused_features is not None else None,
+                audio_array=audio_array_for_hf,
                 audio_length=audio_length,
                 sample_rate=sr,
                 model_availability=model_availability,
