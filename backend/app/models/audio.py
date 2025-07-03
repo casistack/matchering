@@ -5,12 +5,45 @@ Database models for storing audio file information and metadata.
 """
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, Boolean
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.types import JSON, TypeDecorator, CHAR
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.sql import func
 import uuid
 from datetime import datetime
 
 from app.core.database import Base
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type for enterprise cross-database compatibility."""
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PostgresUUID(as_uuid=True))
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return str(value) if isinstance(value, uuid.UUID) else value
+        else:
+            if isinstance(value, uuid.UUID):
+                return str(value)
+            else:
+                return str(uuid.UUID(value)) if value else value
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            if isinstance(value, uuid.UUID):
+                return value
+            else:
+                return uuid.UUID(value)
 
 
 class AudioFile(Base):
@@ -19,7 +52,7 @@ class AudioFile(Base):
     __tablename__ = "audio_files"
     
     # Primary identifiers
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
     filename = Column(String(255), nullable=False)
     original_filename = Column(String(255), nullable=False)
     
@@ -50,8 +83,8 @@ class AudioMetadata(Base):
     __tablename__ = "audio_metadata"
     
     # Primary key and foreign key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    audio_file_id = Column(UUID(as_uuid=True), nullable=False, unique=True, index=True)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
+    audio_file_id = Column(GUID, nullable=False, unique=True, index=True)
     
     # Basic audio metrics
     rms_level = Column(Float, nullable=True)
@@ -70,9 +103,9 @@ class AudioMetadata(Base):
     true_peak = Column(Float, nullable=True)
     
     # Advanced features (stored as JSON)
-    mfcc_features = Column(JSONB, nullable=True)  # MFCC coefficients
-    spectral_features = Column(JSONB, nullable=True)  # Additional spectral data
-    tempo_features = Column(JSONB, nullable=True)  # Tempo and rhythm analysis
+    mfcc_features = Column(JSON, nullable=True)  # MFCC coefficients
+    spectral_features = Column(JSON, nullable=True)  # Additional spectral data
+    tempo_features = Column(JSON, nullable=True)  # Tempo and rhythm analysis
     
     # Analysis metadata
     analysis_version = Column(String(20), nullable=False, default="1.0")
