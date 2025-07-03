@@ -491,7 +491,10 @@ async def predict_mastering_parameters(
                     genre_probs = ai_genre_probs
                     predicted_genre = ai_predicted_genre
                     is_using_fallback = False
+                    # Update the model_used to reflect ensemble usage
+                    selected_model = "huggingface_ensemble"
                     logger.info(f"✅ Enterprise AI genre detection successful for {file.filename}: {predicted_genre}")
+                    logger.info(f"🎯 Updated selected_model to: {selected_model}")
                 else:
                     logger.warning(f"🔍 Enterprise AI detection failed: fallback={ai_fallback}, genre={ai_predicted_genre}, probs={bool(ai_genre_probs)}")
                 
@@ -1870,6 +1873,8 @@ async def _predict_genre_with_ensemble_ai(
         # Check if ensemble AI is enabled via configuration
         from app.ai.ensemble_config import EnsembleSettings
         
+        # Configuration check passed - ensemble is enabled
+        
         if not EnsembleSettings.is_ensemble_enabled():
             logger.info(f"🔄 Ensemble AI disabled, falling back to AST model for {filename}")
             return await _predict_genre_from_ai_models(
@@ -1882,7 +1887,7 @@ async def _predict_genre_with_ensemble_ai(
             _predict_genre_with_ensemble_ai._ensemble_classifier = EnsembleGenreClassifier(
                 production_model_manager=production_model_manager
             )
-            logger.info("Enterprise Ensemble Classifier initialized")
+            logger.info("Enterprise HuggingFace Ensemble Classifier initialized")
         
         ensemble_classifier = _predict_genre_with_ensemble_ai._ensemble_classifier
         
