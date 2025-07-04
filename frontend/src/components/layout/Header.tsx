@@ -1,18 +1,21 @@
+import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box, IconButton, Chip } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CompareIcon from '@mui/icons-material/Compare';
+import SettingsIcon from '@mui/icons-material/Settings';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import GitHubIcon from '@mui/icons-material/GitHub';
 
-const Header = (): JSX.Element => {
+const Header = (): React.ReactElement => {
   const location = useLocation();
 
   const navItems = [
     { label: 'Home', path: '/', icon: <HomeIcon /> },
     { label: 'AI Auto-Master', path: '/auto-master', icon: <AutoFixHighIcon /> },
     { label: 'Reference Master', path: '/reference-master', icon: <CompareIcon /> },
+    { label: 'Settings', path: '/settings', icon: <SettingsIcon /> },
   ] as const;
 
   return (

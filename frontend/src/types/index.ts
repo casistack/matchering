@@ -4,3 +4,4 @@ export type * from './processing';
 export type * from './api';
 export type * from './websocket';
 export type * from './hooks';
+export type * from './settings';

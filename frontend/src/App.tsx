@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
@@ -5,6 +6,8 @@ import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import AutoMaster from './pages/AutoMaster';
 import ReferenceMaster from './pages/ReferenceMaster';
+import Settings from './pages/Settings';
+import { SettingsProvider } from './contexts/SettingsContext';
 
 // Create a dark theme matching Matchering's color scheme
 const theme = createTheme({
@@ -119,19 +122,22 @@ const theme = createTheme({
   },
 });
 
-const App = (): JSX.Element => {
+const App = (): React.ReactElement => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="auto-master" element={<AutoMaster />} />
-            <Route path="reference-master" element={<ReferenceMaster />} />
-          </Route>
-        </Routes>
-      </Router>
+      <SettingsProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="auto-master" element={<AutoMaster />} />
+              <Route path="reference-master" element={<ReferenceMaster />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </Router>
+      </SettingsProvider>
     </ThemeProvider>
   );
 };
