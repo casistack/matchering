@@ -121,13 +121,13 @@ const SettingsPage: React.FC = () => {
         </Typography>
         
         {/* Active Profile Indicator */}
-        {config?.activeProfile && (
+        {config?.current_profile && (
           <Alert 
             severity="info" 
             sx={{ mt: 2 }}
             icon={<ProfileIcon />}
           >
-            Active Profile: <strong>{config.activeProfile.name}</strong> - {config.activeProfile.description}
+            Active Profile: <strong>{config.current_profile.name}</strong> - {config.current_profile.description}
           </Alert>
         )}
       </Box>
@@ -229,10 +229,10 @@ const SettingsPage: React.FC = () => {
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
           Settings are automatically saved and synced across your devices.
-          {config?.anonymousId && (
+          {config?.system_defaults && (
             <>
               <br />
-              Session ID: <code>{config.anonymousId}</code>
+              System defaults loaded successfully
             </>
           )}
         </Typography>

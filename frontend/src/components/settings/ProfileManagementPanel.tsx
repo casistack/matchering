@@ -41,8 +41,7 @@ import {
 import { useProfileManagement, useSettings } from '@/hooks/useSettings';
 import type { 
   UserSettingsProfile, 
-  ModelPreferences, 
-  ModelName 
+  ModelPreferences 
 } from '@/types/settings';
 import { 
   MODEL_DISPLAY_NAMES, 
@@ -82,10 +81,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
     setAnchorEl(null);
   };
 
-  const getProfileColor = (preferences: ModelPreferences) => {
-    const primaryModel = preferences.preferredModels[0];
+  const getProfileColor = (profile: UserSettingsProfile) => {
+    const ensembleWeights = profile.ensemble_weights;
+    const primaryModel = Object.keys(ensembleWeights)[0] || 'default';
     switch (primaryModel) {
-      case 'ensemble':
+      case 'huggingface':
         return '#1976d2'; // Blue
       case 'distilhubert':
         return '#9c27b0'; // Purple
@@ -98,7 +98,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
     }
   };
 
-  const formatModelsList = (models: ModelName[]) => {
+  const formatModelsList = (ensembleWeights: Record<string, number>) => {
+    const models = Object.keys(ensembleWeights);
     return models.map(model => MODEL_DISPLAY_NAMES[model] || model).join(', ');
   };
 
@@ -144,7 +145,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <Box display="flex" alignItems="center" gap={2} mb={2}>
           <Avatar
             sx={{
-              bgcolor: getProfileColor(profile.preferences),
+              bgcolor: getProfileColor(profile),
               width: 48,
               height: 48,
             }}
@@ -165,10 +166,10 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         {/* Profile Details */}
         <Box mb={2}>
           <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-            Models ({profile.preferences.preferredModels.length})
+            Models ({Object.keys(profile.ensemble_weights).length})
           </Typography>
-          <Typography variant="body2" noWrap title={formatModelsList(profile.preferences.preferredModels)}>
-            {formatModelsList(profile.preferences.preferredModels)}
+          <Typography variant="body2" noWrap title={formatModelsList(profile.ensemble_weights)}>
+            {formatModelsList(profile.ensemble_weights)}
           </Typography>
         </Box>
 
@@ -177,7 +178,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
             Confidence Threshold
           </Typography>
           <Chip
-            label={`${(profile.preferences.confidenceThreshold * 100).toFixed(0)}%`}
+            label={`${(profile.confidence_threshold * 100).toFixed(0)}%`}
             size="small"
             variant="outlined"
           />
@@ -188,7 +189,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
             Max Processing Time
           </Typography>
           <Typography variant="caption">
-            {(profile.preferences.maxProcessingTime / 1000).toFixed(1)}s
+            {(profile.max_processing_time / 1000).toFixed(1)}s
           </Typography>
         </Box>
       </CardContent>
@@ -283,7 +284,7 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({
       return;
     }
 
-    const preferences = profile?.preferences || config?.preferences || DEFAULT_PREFERENCES;
+    const preferences = (profile as unknown as ModelPreferences) || config?.current_profile || DEFAULT_PREFERENCES;
     onSave(name.trim(), description.trim(), preferences);
   };
 
