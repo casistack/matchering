@@ -94,8 +94,18 @@ const settingsReducer = (state: SettingsContextState, action: SettingsAction): S
         ...state,
         config: {
           ...state.config,
-          preferences: action.payload,
-          lastUpdated: new Date().toISOString(),
+          current_profile: {
+            ...state.config.current_profile,
+            preferred_strategy: action.payload.preferred_strategy,
+            ensemble_weights: action.payload.ensemble_weights,
+            quality_preference: action.payload.quality_preference,
+            enable_experimental: action.payload.enable_experimental,
+            confidence_threshold: action.payload.confidence_threshold,
+            max_processing_time: action.payload.max_processing_time,
+            fallback_strategy: action.payload.fallback_strategy,
+            advanced_settings: action.payload.custom_settings,
+            updated_at: new Date().toISOString(),
+          },
         },
         error: null,
       };
@@ -106,8 +116,7 @@ const settingsReducer = (state: SettingsContextState, action: SettingsAction): S
         ...state,
         config: {
           ...state.config,
-          profiles: [...state.config.profiles, action.payload],
-          lastUpdated: new Date().toISOString(),
+          available_profiles: [...state.config.available_profiles, action.payload],
         },
         error: null,
       };
@@ -118,28 +127,24 @@ const settingsReducer = (state: SettingsContextState, action: SettingsAction): S
         ...state,
         config: {
           ...state.config,
-          activeProfile: action.payload,
-          preferences: action.payload.preferences,
-          lastUpdated: new Date().toISOString(),
+          current_profile: action.payload,
         },
         error: null,
       };
 
     case 'REMOVE_PROFILE': {
       if (!state.config) return state;
-      const updatedProfiles = state.config.profiles.filter(p => p.id !== action.payload);
-      const activeProfile = state.config.activeProfile?.id === action.payload 
-        ? null 
-        : state.config.activeProfile;
+      const updatedProfiles = state.config.available_profiles.filter(p => p.id !== action.payload);
+      const isCurrentProfileDeleted = state.config.current_profile?.id === action.payload;
       
       return {
         ...state,
         config: {
           ...state.config,
-          profiles: updatedProfiles,
-          activeProfile,
-          preferences: activeProfile ? activeProfile.preferences : state.config.systemDefaults,
-          lastUpdated: new Date().toISOString(),
+          available_profiles: updatedProfiles,
+          current_profile: isCurrentProfileDeleted 
+            ? (updatedProfiles[0] || state.config.current_profile)
+            : state.config.current_profile,
         },
         error: null,
       };

@@ -40,13 +40,12 @@ import {
 } from '@mui/icons-material';
 import { useSettings, useModelSelection } from '@/hooks/useSettings';
 import type { 
-  ModelName, 
-  ProcessingStrategy, 
+  FallbackStrategy,
   ModelPreferences,
   AvailableModelInfo 
 } from '@/types/settings';
 import { 
-  PROCESSING_STRATEGIES, 
+  FALLBACK_STRATEGIES, 
   DEFAULT_PREFERENCES 
 } from '@/types/settings';
 
@@ -70,7 +69,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
   onWeightChange,
   disabled = false,
 }) => {
-  const getModelIcon = (modelName: ModelName) => {
+  const getModelIcon = (modelName: string) => {
     switch (modelName) {
       case 'ensemble':
         return <BrainIcon color="primary" />;
@@ -79,6 +78,8 @@ const ModelCard: React.FC<ModelCardProps> = ({
         return <SpeedIcon color="secondary" />;
       case 'ast':
         return <QualityIcon color="success" />;
+      case 'huggingface':
+        return <BrainIcon color="primary" />;
       default:
         return <TuneIcon color="action" />;
     }
@@ -108,7 +109,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
           <Box display="flex" alignItems="center" gap={1}>
             {getModelIcon(model.name)}
             <Typography variant="h6" component="h3">
-              {model.displayName}
+              {model.name}
             </Typography>
           </Box>
           
@@ -137,9 +138,9 @@ const ModelCard: React.FC<ModelCardProps> = ({
               Accuracy
             </Typography>
             <Chip
-              label={`${(model.performanceMetrics.averageAccuracy * 100).toFixed(1)}%`}
+              label={`${(model.performance.accuracy * 100).toFixed(1)}%`}
               size="small"
-              color={getPerformanceColor(model.performanceMetrics.averageAccuracy)}
+              color={getPerformanceColor(model.performance.accuracy)}
               variant="outlined"
             />
           </Box>
@@ -149,7 +150,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
               Avg. Processing Time
             </Typography>
             <Typography variant="caption">
-              {model.performanceMetrics.averageProcessingTime.toFixed(1)}s
+              {(model.performance.average_processing_time / 1000).toFixed(1)}s
             </Typography>
           </Box>
         </Box>
@@ -181,10 +182,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
         {/* Supported Genres */}
         <Box mt={2}>
           <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-            Supported Genres ({model.supportedGenres.length})
+            Supported Genres ({model.performance.supported_genres.length})
           </Typography>
           <Box display="flex" flexWrap="wrap" gap={0.5}>
-            {model.supportedGenres.slice(0, 3).map((genre) => (
+            {model.performance.supported_genres.slice(0, 3).map((genre) => (
               <Chip
                 key={genre}
                 label={genre}
@@ -193,9 +194,9 @@ const ModelCard: React.FC<ModelCardProps> = ({
                 sx={{ fontSize: '0.7rem', height: 20 }}
               />
             ))}
-            {model.supportedGenres.length > 3 && (
+            {model.performance.supported_genres.length > 3 && (
               <Chip
-                label={`+${model.supportedGenres.length - 3} more`}
+                label={`+${model.performance.supported_genres.length - 3} more`}
                 size="small"
                 variant="outlined"
                 sx={{ fontSize: '0.7rem', height: 20 }}
@@ -223,37 +224,40 @@ const ModelPreferencesPanel: React.FC = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get current preferences
-  const preferences = config?.preferences || DEFAULT_PREFERENCES;
+  const preferences = config?.current_profile || DEFAULT_PREFERENCES;
 
-  const handleModelSelectionChange = useCallback((modelName: ModelName, selected: boolean) => {
-    const newSelectedModels = selected
-      ? [...selectedModels, modelName]
-      : selectedModels.filter(name => name !== modelName);
+  const handleModelSelectionChange = useCallback((modelName: string, selected: boolean) => {
+    const newWeights = { ...ensembleWeights };
+    if (selected) {
+      newWeights[modelName] = 0.5; // Default weight
+    } else {
+      delete newWeights[modelName];
+    }
 
     setLocalPreferences(prev => ({
       ...prev,
-      preferredModels: newSelectedModels,
+      ensemble_weights: newWeights,
     }));
     setHasUnsavedChanges(true);
-  }, [selectedModels]);
+  }, [ensembleWeights]);
 
-  const handleWeightChange = useCallback((modelName: ModelName, weight: number) => {
-    const newWeights: Record<ModelName, number> = {
+  const handleWeightChange = useCallback((modelName: string, weight: number) => {
+    const newWeights = {
       ...ensembleWeights,
       [modelName]: weight,
     };
 
     setLocalPreferences(prev => ({
       ...prev,
-      ensembleWeights: newWeights,
+      ensemble_weights: newWeights,
     }));
     setHasUnsavedChanges(true);
   }, [ensembleWeights]);
 
-  const handleStrategyChange = useCallback((strategy: ProcessingStrategy) => {
+  const handleStrategyChange = useCallback((strategy: FallbackStrategy) => {
     setLocalPreferences(prev => ({
       ...prev,
-      fallbackStrategy: strategy,
+      fallback_strategy: strategy,
     }));
     setHasUnsavedChanges(true);
   }, []);
@@ -290,7 +294,17 @@ const ModelPreferencesPanel: React.FC = () => {
   const isWeightValid = Math.abs(totalWeight - 1.0) < 0.1;
 
   // Get current values (local changes override saved preferences)
-  const currentPreferences = { ...preferences, ...localPreferences };
+  const currentPreferences = { 
+    preferred_strategy: preferences.preferred_strategy,
+    ensemble_weights: preferences.ensemble_weights,
+    quality_preference: preferences.quality_preference,
+    enable_experimental: preferences.enable_experimental,
+    confidence_threshold: preferences.confidence_threshold,
+    max_processing_time: preferences.max_processing_time,
+    fallback_strategy: preferences.fallback_strategy,
+    custom_settings: 'advanced_settings' in preferences ? preferences.advanced_settings : {},
+    ...localPreferences 
+  };
 
   return (
     <Box>
@@ -371,13 +385,13 @@ const ModelPreferencesPanel: React.FC = () => {
               <FormControl component="fieldset" fullWidth>
                 <FormLabel component="legend">Fallback Strategy</FormLabel>
                 <Box mt={1}>
-                  {Object.entries(PROCESSING_STRATEGIES).map(([strategy, description]) => (
+                  {Object.entries(FALLBACK_STRATEGIES).map(([strategy, description]) => (
                     <FormControlLabel
                       key={strategy}
                       control={
                         <Checkbox
-                          checked={currentPreferences.fallbackStrategy === strategy}
-                          onChange={() => handleStrategyChange(strategy as ProcessingStrategy)}
+                          checked={currentPreferences.fallback_strategy === strategy}
+                          onChange={() => handleStrategyChange(strategy as FallbackStrategy)}
                           disabled={isLoading}
                         />
                       }
@@ -400,11 +414,11 @@ const ModelPreferencesPanel: React.FC = () => {
             {/* Confidence Threshold */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="subtitle2" gutterBottom>
-                Confidence Threshold: {(currentPreferences.confidenceThreshold * 100).toFixed(0)}%
+                Confidence Threshold: {(currentPreferences.confidence_threshold * 100).toFixed(0)}%
               </Typography>
               <Slider
-                value={currentPreferences.confidenceThreshold}
-                onChange={(_, value) => handlePreferenceChange('confidenceThreshold', value)}
+                value={currentPreferences.confidence_threshold}
+                onChange={(_, value) => handlePreferenceChange('confidence_threshold', value)}
                 min={0.5}
                 max={0.95}
                 step={0.05}
@@ -425,8 +439,8 @@ const ModelPreferencesPanel: React.FC = () => {
               <TextField
                 label="Max Processing Time (ms)"
                 type="number"
-                value={currentPreferences.maxProcessingTime}
-                onChange={(e) => handlePreferenceChange('maxProcessingTime', parseInt(e.target.value))}
+                value={currentPreferences.max_processing_time}
+                onChange={(e) => handlePreferenceChange('max_processing_time', parseInt(e.target.value))}
                 disabled={isLoading}
                 fullWidth
                 inputProps={{ min: 1000, max: 10000, step: 500 }}
@@ -439,8 +453,8 @@ const ModelPreferencesPanel: React.FC = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={currentPreferences.enableFallback}
-                    onChange={(e) => handlePreferenceChange('enableFallback', e.target.checked)}
+                    checked={currentPreferences.enable_experimental}
+                    onChange={(e) => handlePreferenceChange('enable_experimental', e.target.checked)}
                     disabled={isLoading}
                   />
                 }

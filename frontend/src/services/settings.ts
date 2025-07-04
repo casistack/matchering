@@ -2,16 +2,13 @@
  * Settings API Service
  *
  * Frontend service for user model selection settings integration
+ * Updated to match backend Pydantic schemas exactly
  */
 
 import type {
   UserSettingsConfig,
-  UpdatePreferencesRequest,
-  CreateProfileRequest,
-  SelectProfileRequest,
   UserAnalytics,
   SystemStatus,
-  SettingsResponse,
   ModelPreferences,
   AvailableModelInfo,
   UserSettingsProfile,
@@ -78,7 +75,7 @@ class SettingsHttpClient {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<SettingsResponse<T>> {
+  ): Promise<T> {
     const url = `${this.baseURL}/api/${SETTINGS_API_CONFIG.API_VERSION}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -99,7 +96,7 @@ class SettingsHttpClient {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new SettingsAPIError(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.detail || `HTTP ${response.status}: ${response.statusText}`,
           response.status,
           errorData.code,
           errorData.field,
@@ -130,7 +127,7 @@ class SettingsHttpClient {
   async get<T>(
     endpoint: string,
     params?: Record<string, string>
-  ): Promise<SettingsResponse<T>> {
+  ): Promise<T> {
     let url = endpoint;
     if (params) {
       const searchParams = new URLSearchParams(params);
@@ -139,21 +136,21 @@ class SettingsHttpClient {
     return this.request<T>(url);
   }
 
-  async post<T>(endpoint: string, data: unknown): Promise<SettingsResponse<T>> {
+  async post<T>(endpoint: string, data: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async put<T>(endpoint: string, data: unknown): Promise<SettingsResponse<T>> {
+  async put<T>(endpoint: string, data: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  async delete<T>(endpoint: string): Promise<SettingsResponse<T>> {
+  async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'DELETE',
     });
@@ -178,20 +175,10 @@ export class SettingsAPIService {
    */
   async getUserConfiguration(anonymousId?: string): Promise<UserSettingsConfig> {
     const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
-    const response = await this.client.get<UserSettingsConfig>(
+    return await this.client.get<UserSettingsConfig>(
       '/settings/config',
       params
     );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to fetch user configuration',
-        500,
-        'FETCH_CONFIG_FAILED'
-      );
-    }
-
-    return response.data;
   }
 
   /**
@@ -201,25 +188,29 @@ export class SettingsAPIService {
     preferences: Partial<ModelPreferences>,
     anonymousId?: string
   ): Promise<ModelPreferences> {
-    const requestData: UpdatePreferencesRequest = {
-      preferences,
-      anonymousId,
+    const requestData = {
+      ...preferences,
     };
 
-    const response = await this.client.put<ModelPreferences>(
-      '/settings/preferences',
+    const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
+    const url = params ? `/settings/preferences?${new URLSearchParams(params).toString()}` : '/settings/preferences';
+    
+    const response = await this.client.put<{ profile: UserSettingsProfile }>(
+      url,
       requestData
     );
 
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to update preferences',
-        500,
-        'UPDATE_PREFERENCES_FAILED'
-      );
-    }
-
-    return response.data;
+    // Extract preferences from the profile response
+    return {
+      preferred_strategy: response.profile.preferred_strategy,
+      ensemble_weights: response.profile.ensemble_weights,
+      quality_preference: response.profile.quality_preference,
+      enable_experimental: response.profile.enable_experimental,
+      confidence_threshold: response.profile.confidence_threshold,
+      max_processing_time: response.profile.max_processing_time,
+      fallback_strategy: response.profile.fallback_strategy,
+      custom_settings: response.profile.advanced_settings
+    };
   }
 
   /**
@@ -231,27 +222,25 @@ export class SettingsAPIService {
     preferences: ModelPreferences,
     anonymousId?: string
   ): Promise<UserSettingsProfile> {
-    const requestData: CreateProfileRequest = {
+    const requestData = {
       name,
       description,
-      preferences,
-      anonymousId,
+      preferences: {
+        preferred_strategy: preferences.preferred_strategy,
+        ensemble_weights: preferences.ensemble_weights,
+        quality_preference: preferences.quality_preference,
+        enable_experimental: preferences.enable_experimental,
+        confidence_threshold: preferences.confidence_threshold,
+        max_processing_time: preferences.max_processing_time,
+        fallback_strategy: preferences.fallback_strategy,
+        custom_settings: preferences.custom_settings
+      }
     };
 
-    const response = await this.client.post<UserSettingsProfile>(
-      '/settings/profiles',
-      requestData
-    );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to create profile',
-        500,
-        'CREATE_PROFILE_FAILED'
-      );
-    }
-
-    return response.data;
+    const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
+    const url = params ? `/settings/profiles?${new URLSearchParams(params).toString()}` : '/settings/profiles';
+    
+    return await this.client.post<UserSettingsProfile>(url, requestData);
   }
 
   /**
@@ -259,20 +248,10 @@ export class SettingsAPIService {
    */
   async getUserProfiles(anonymousId?: string): Promise<UserSettingsProfile[]> {
     const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
-    const response = await this.client.get<UserSettingsProfile[]>(
+    return await this.client.get<UserSettingsProfile[]>(
       '/settings/profiles',
       params
     );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to fetch profiles',
-        500,
-        'FETCH_PROFILES_FAILED'
-      );
-    }
-
-    return response.data;
   }
 
   /**
@@ -282,25 +261,11 @@ export class SettingsAPIService {
     profileId: string,
     anonymousId?: string
   ): Promise<UserSettingsProfile> {
-    const requestData: SelectProfileRequest = {
-      profileId,
-      anonymousId,
-    };
-
-    const response = await this.client.put<UserSettingsProfile>(
-      `/settings/profiles/${profileId}/select`,
-      requestData
-    );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to select profile',
-        500,
-        'SELECT_PROFILE_FAILED'
-      );
-    }
-
-    return response.data;
+    const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
+    const url = params ? `/settings/profiles/${profileId}/select?${new URLSearchParams(params).toString()}` : `/settings/profiles/${profileId}/select`;
+    
+    const response = await this.client.put<{ active_profile: UserSettingsProfile }>(url, {});
+    return response.active_profile;
   }
 
   /**
@@ -311,15 +276,7 @@ export class SettingsAPIService {
     if (anonymousId) {
       url += `?anonymous_id=${encodeURIComponent(anonymousId)}`;
     }
-    const response = await this.client.delete<void>(url);
-
-    if (!response.success) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to delete profile',
-        500,
-        'DELETE_PROFILE_FAILED'
-      );
-    }
+    await this.client.delete<{ success: boolean }>(url);
   }
 
   /**
@@ -327,20 +284,10 @@ export class SettingsAPIService {
    */
   async getAvailableModels(anonymousId?: string): Promise<AvailableModelInfo[]> {
     const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
-    const response = await this.client.get<AvailableModelInfo[]>(
+    return await this.client.get<AvailableModelInfo[]>(
       '/settings/models',
       params
     );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to fetch available models',
-        500,
-        'FETCH_MODELS_FAILED'
-      );
-    }
-
-    return response.data;
   }
 
   /**
@@ -348,58 +295,39 @@ export class SettingsAPIService {
    */
   async getUserAnalytics(anonymousId?: string): Promise<UserAnalytics> {
     const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
-    const response = await this.client.get<UserAnalytics>(
+    return await this.client.get<UserAnalytics>(
       '/settings/analytics',
       params
     );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to fetch analytics',
-        500,
-        'FETCH_ANALYTICS_FAILED'
-      );
-    }
-
-    return response.data;
   }
 
   /**
    * Get system status
    */
   async getSystemStatus(): Promise<SystemStatus> {
-    const response = await this.client.get<SystemStatus>('/settings/system/status');
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to fetch system status',
-        500,
-        'FETCH_STATUS_FAILED'
-      );
-    }
-
-    return response.data;
+    return await this.client.get<SystemStatus>('/settings/system/status');
   }
 
   /**
    * Reset to default preferences
    */
   async resetToDefaults(anonymousId?: string): Promise<ModelPreferences> {
-    const requestData = { anonymousId };
-    const response = await this.client.post<ModelPreferences>(
-      '/settings/reset-defaults',
-      requestData
-    );
-
-    if (!response.success || !response.data) {
-      throw new SettingsAPIError(
-        response.error || 'Failed to reset to defaults',
-        500,
-        'RESET_DEFAULTS_FAILED'
-      );
-    }
-
-    return response.data;
+    const params = anonymousId ? { anonymous_id: anonymousId } : undefined;
+    const url = params ? `/settings/reset-defaults?${new URLSearchParams(params).toString()}` : '/settings/reset-defaults';
+    
+    const response = await this.client.post<{ profile: UserSettingsProfile }>(url, {});
+    
+    // Extract preferences from the profile response
+    return {
+      preferred_strategy: response.profile.preferred_strategy,
+      ensemble_weights: response.profile.ensemble_weights,
+      quality_preference: response.profile.quality_preference,
+      enable_experimental: response.profile.enable_experimental,
+      confidence_threshold: response.profile.confidence_threshold,
+      max_processing_time: response.profile.max_processing_time,
+      fallback_strategy: response.profile.fallback_strategy,
+      custom_settings: response.profile.advanced_settings
+    };
   }
 }
 

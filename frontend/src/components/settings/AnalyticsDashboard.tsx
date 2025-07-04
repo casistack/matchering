@@ -24,15 +24,13 @@ import {
 } from '@mui/material';
 import {
   TrendingUpRounded as TrendingUpIcon,
-  AccessTimeRounded as TimeIcon,
   FavoriteRounded as FavoriteIcon,
-  MusicNoteRounded as MusicIcon,
   SpeedRounded as SpeedIcon,
   AnalyticsRounded as AnalyticsIcon,
   PsychologyRounded as BrainIcon,
   EmojiEventsRounded as TrophyIcon,
 } from '@mui/icons-material';
-import type { UserAnalytics, SystemStatus, ModelName } from '@/types/settings';
+import type { UserAnalytics, SystemStatus } from '@/types/settings';
 import { MODEL_DISPLAY_NAMES } from '@/types/settings';
 
 /**
@@ -85,7 +83,8 @@ interface ModelPerformanceChartProps {
 }
 
 const ModelPerformanceChart: React.FC<ModelPerformanceChartProps> = ({ analytics }) => {
-  const maxUsage = Math.max(...analytics.modelPerformance.map(m => m.usageCount));
+  const modelUsage = Object.entries(analytics.model_usage_distribution);
+  const maxUsage = Math.max(...Object.values(analytics.model_usage_distribution));
 
   return (
     <Card>
@@ -95,8 +94,8 @@ const ModelPerformanceChart: React.FC<ModelPerformanceChartProps> = ({ analytics
         </Typography>
         
         <List>
-          {analytics.modelPerformance.map((model, index) => (
-            <React.Fragment key={model.modelName}>
+          {modelUsage.map(([modelName, usageCount], index) => (
+            <React.Fragment key={modelName}>
               <ListItem>
                 <ListItemAvatar>
                   <Avatar sx={{ bgcolor: `hsl(${index * 60}, 70%, 50%)` }}>
@@ -105,37 +104,37 @@ const ModelPerformanceChart: React.FC<ModelPerformanceChartProps> = ({ analytics
                 </ListItemAvatar>
                 
                 <ListItemText
-                  primary={MODEL_DISPLAY_NAMES[model.modelName] || model.modelName}
+                  primary={MODEL_DISPLAY_NAMES[modelName] || modelName}
                   secondary={
                     <Box>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                         <Typography variant="caption">
-                          Accuracy: {(model.accuracy * 100).toFixed(1)}%
+                          Quality: {analytics.quality_ratings[modelName] ? (analytics.quality_ratings[modelName] * 100).toFixed(1) + '%' : 'N/A'}
                         </Typography>
                         <Typography variant="caption">
-                          Avg Time: {model.processingTime.toFixed(1)}s
+                          Avg Time: {analytics.average_processing_time.toFixed(1)}s
                         </Typography>
                       </Box>
                       
                       <LinearProgress
                         variant="determinate"
-                        value={(model.usageCount / maxUsage) * 100}
+                        value={(usageCount / maxUsage) * 100}
                         sx={{ height: 6, borderRadius: 3 }}
                       />
                       
                       <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
                         <Typography variant="caption" color="text.secondary">
-                          Used {model.usageCount} times
+                          Used {usageCount} times
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {new Date(model.lastUsed).toLocaleDateString()}
+                          Last {analytics.period_days} days
                         </Typography>
                       </Box>
                     </Box>
                   }
                 />
               </ListItem>
-              {index < analytics.modelPerformance.length - 1 && <Divider />}
+              {index < modelUsage.length - 1 && <Divider />}
             </React.Fragment>
           ))}
         </List>
@@ -145,115 +144,48 @@ const ModelPerformanceChart: React.FC<ModelPerformanceChartProps> = ({ analytics
 };
 
 /**
- * Genre Distribution Component
+ * Most Used Model Component
  */
-interface GenreDistributionProps {
-  genreDistribution: Record<string, number>;
+interface MostUsedModelProps {
+  modelUsage: Record<string, number>;
 }
 
-const GenreDistribution: React.FC<GenreDistributionProps> = ({ genreDistribution }) => {
-  const genres = Object.entries(genreDistribution)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5); // Top 5 genres
-
-  const total = Object.values(genreDistribution).reduce((sum, count) => sum + count, 0);
+const MostUsedModel: React.FC<MostUsedModelProps> = ({ modelUsage }) => {
+  const topModels = Object.entries(modelUsage)
+    .sort(([, a], [, b]) => (b as number) - (a as number))
+    .slice(0, 3);
 
   return (
     <Card>
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          Genre Distribution
+          Most Used Models
         </Typography>
         
-        {genres.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
-            No genre data available yet.
-            Process some audio files to see your genre preferences.
+        {topModels.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+            No model usage data yet.
           </Typography>
         ) : (
-          <List dense>
-            {genres.map(([genre, count], index) => (
-              <ListItem key={genre} disablePadding>
-                <ListItemAvatar>
-                  <Avatar 
-                    sx={{ 
-                      bgcolor: `hsl(${index * 45}, 60%, 50%)`,
-                      width: 32,
-                      height: 32,
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    <MusicIcon fontSize="small" />
+          <Box display="flex" flexWrap="wrap" gap={1}>
+            {topModels.map(([model, usage], index) => (
+              <Chip
+                key={model}
+                label={`${MODEL_DISPLAY_NAMES[model] || model} (${usage})`}
+                variant="outlined"
+                avatar={
+                  <Avatar sx={{ bgcolor: index === 0 ? 'gold' : index === 1 ? 'silver' : '#cd7f32' }}>
+                    {index === 0 ? <TrophyIcon /> : <FavoriteIcon />}
                   </Avatar>
-                </ListItemAvatar>
-                
-                <ListItemText
-                  primary={
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                        {genre}
-                      </Typography>
-                      <Chip
-                        label={`${((count / total) * 100).toFixed(1)}%`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </Box>
-                  }
-                  secondary={
-                    <LinearProgress
-                      variant="determinate"
-                      value={(count / Math.max(...Object.values(genreDistribution))) * 100}
-                      sx={{ mt: 0.5, height: 4, borderRadius: 2 }}
-                    />
-                  }
-                />
-              </ListItem>
+                }
+              />
             ))}
-          </List>
+          </Box>
         )}
       </CardContent>
     </Card>
   );
 };
-
-/**
- * Favorite Models Component
- */
-interface FavoriteModelsProps {
-  favoriteModels: ModelName[];
-}
-
-const FavoriteModels: React.FC<FavoriteModelsProps> = ({ favoriteModels }) => (
-  <Card>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        Your Favorite Models
-      </Typography>
-      
-      {favoriteModels.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-          No favorite models identified yet.
-        </Typography>
-      ) : (
-        <Box display="flex" flexWrap="wrap" gap={1}>
-          {favoriteModels.map((model, index) => (
-            <Chip
-              key={model}
-              label={MODEL_DISPLAY_NAMES[model] || model}
-              variant="outlined"
-              avatar={
-                <Avatar sx={{ bgcolor: index === 0 ? 'gold' : 'silver' }}>
-                  {index === 0 ? <TrophyIcon /> : <FavoriteIcon />}
-                </Avatar>
-              }
-            />
-          ))}
-        </Box>
-      )}
-    </CardContent>
-  </Card>
-);
 
 /**
  * Analytics Dashboard Props
@@ -302,7 +234,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Total Processing Jobs"
-            value={analytics.totalProcessingJobs}
+            value={analytics.total_processing_jobs}
             icon={<AnalyticsIcon />}
             color="primary"
           />
@@ -311,7 +243,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Average Processing Time"
-            value={`${analytics.averageProcessingTime.toFixed(1)}s`}
+            value={`${analytics.average_processing_time.toFixed(1)}s`}
             icon={<SpeedIcon />}
             color="secondary"
           />
@@ -319,17 +251,17 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
-            title="Total Sessions"
-            value={analytics.systemUsage.totalSessions}
-            icon={<TimeIcon />}
+            title="Most Used Model"
+            value={analytics.most_used_model || 'None'}
+            icon={<BrainIcon />}
             color="success"
           />
         </Grid>
         
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
-            title="Avg Session Duration"
-            value={`${Math.round(analytics.systemUsage.averageSessionDuration / 60)}min`}
+            title="Analysis Period"
+            value={`${analytics.period_days} days`}
             icon={<TrendingUpIcon />}
             color="warning"
           />
@@ -343,44 +275,63 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ModelPerformanceChart analytics={analytics} />
         </Grid>
 
-        {/* Genre Distribution */}
+        {/* Quality Ratings */}
         <Grid size={{ xs: 12, lg: 6 }}>
-          <GenreDistribution genreDistribution={analytics.genreDistribution} />
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Model Quality Ratings
+              </Typography>
+              {Object.keys(analytics.quality_ratings).length === 0 ? (
+                <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
+                  No quality ratings available yet.
+                </Typography>
+              ) : (
+                <List dense>
+                  {Object.entries(analytics.quality_ratings).map(([model, rating]) => (
+                    <ListItem key={model}>
+                      <ListItemText
+                        primary={MODEL_DISPLAY_NAMES[model] || model}
+                        secondary={`${(rating * 100).toFixed(1)}% quality score`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
 
-        {/* Favorite Models */}
+        {/* Most Used Models */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <FavoriteModels favoriteModels={analytics.favoriteModels} />
+          <MostUsedModel 
+            modelUsage={analytics.model_usage_distribution}
+          />
         </Grid>
 
-        {/* System Usage */}
+        {/* Performance Trends */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                System Usage
+                Performance Trends
               </Typography>
-              
-              <List dense>
-                <ListItem>
-                  <ListItemText
-                    primary="Last Active"
-                    secondary={new Date(analytics.systemUsage.lastActive).toLocaleString()}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Total Sessions"
-                    secondary={`${analytics.systemUsage.totalSessions} sessions`}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Average Session Duration"
-                    secondary={`${Math.round(analytics.systemUsage.averageSessionDuration / 60)} minutes`}
-                  />
-                </ListItem>
-              </List>
+              {Object.keys(analytics.performance_trends).length === 0 ? (
+                <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
+                  No performance trend data available yet.
+                </Typography>
+              ) : (
+                <List dense>
+                  {Object.entries(analytics.performance_trends).map(([metric, values]) => (
+                    <ListItem key={metric}>
+                      <ListItemText
+                        primary={metric.replace('_', ' ').toUpperCase()}
+                        secondary={`${values.length} data points over ${analytics.period_days} days`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -390,15 +341,16 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       {systemStatus && (
         <Alert severity="info" sx={{ mt: 3 }}>
           <Typography variant="body2">
-            <strong>System Performance:</strong> {Object.values(systemStatus.modelHealth).filter(Boolean).length}/{Object.keys(systemStatus.modelHealth).length} models healthy
-            • Queue: {systemStatus.queueLength} jobs 
-            • Avg processing: {systemStatus.averageProcessingTime.toFixed(1)}s
+            <strong>System Performance:</strong> {systemStatus.available_models_count} models available
+            • Active users: {systemStatus.active_users_count}
+            • Cache hit rate: {(systemStatus.cache_hit_rate * 100).toFixed(1)}%
+            • Avg response: {systemStatus.average_response_time.toFixed(1)}ms
           </Typography>
         </Alert>
       )}
 
       {/* No Data State */}
-      {analytics.totalProcessingJobs === 0 && (
+      {analytics.total_processing_jobs === 0 && (
         <Alert severity="info" sx={{ mt: 4 }}>
           <Typography variant="body2">
             <strong>Start Processing Audio Files</strong>

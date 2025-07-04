@@ -5,7 +5,7 @@
  */
 
 import { useContext, useCallback } from 'react';
-import type { SettingsContextValue, ModelName } from '@/types/settings';
+import type { SettingsContextValue } from '@/types/settings';
 import { SettingsContext } from '@/contexts/SettingsContext';
 
 /**
@@ -43,12 +43,13 @@ export const useModelSelection = () => {
   const { config, updatePreferences, isLoading } = useSettings();
 
   const updateSelectedModels = useCallback(
-    (modelNames: ModelName[]) => {
+    (modelNames: string[]) => {
       if (!config) return;
 
       const preferences = {
-        ...config.preferences,
-        preferredModels: modelNames,
+        ensemble_weights: Object.fromEntries(
+          modelNames.map(name => [name, 1.0 / modelNames.length])
+        ),
       };
 
       updatePreferences(preferences);
@@ -57,12 +58,11 @@ export const useModelSelection = () => {
   );
 
   const updateEnsembleWeights = useCallback(
-    (weights: Record<ModelName, number>) => {
+    (weights: Record<string, number>) => {
       if (!config) return;
 
       const preferences = {
-        ...config.preferences,
-        ensembleWeights: weights,
+        ensemble_weights: weights,
       };
 
       updatePreferences(preferences);
@@ -71,10 +71,9 @@ export const useModelSelection = () => {
   );
 
   return {
-    selectedModels: config?.preferences.preferredModels || [],
-    ensembleWeights:
-      config?.preferences.ensembleWeights || ({} as Record<ModelName, number>),
-    availableModels: config?.availableModels || [],
+    selectedModels: Object.keys(config?.current_profile?.ensemble_weights || {}),
+    ensembleWeights: config?.current_profile?.ensemble_weights || {},
+    availableModels: config?.available_models || [],
     updateSelectedModels,
     updateEnsembleWeights,
     isLoading,
@@ -89,8 +88,8 @@ export const useProfileManagement = () => {
     useSettings();
 
   return {
-    profiles: config?.profiles || [],
-    activeProfile: config?.activeProfile || null,
+    profiles: config?.available_profiles || [],
+    activeProfile: config?.current_profile || null,
     createProfile,
     selectProfile,
     deleteProfile,
