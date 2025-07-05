@@ -4,7 +4,7 @@
  * UI for configuring AI model selection and ensemble weights
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -273,6 +273,19 @@ const ModelPreferencesPanel: React.FC = () => {
   // Get current preferences
   const preferences = config?.current_profile || DEFAULT_PREFERENCES;
 
+  // Get current values (local changes override saved preferences) - memoized to prevent unnecessary re-renders
+  const currentPreferences = useMemo(() => ({ 
+    preferred_strategy: preferences.preferred_strategy,
+    ensemble_weights: preferences.ensemble_weights,
+    quality_preference: preferences.quality_preference,
+    enable_experimental: preferences.enable_experimental,
+    confidence_threshold: preferences.confidence_threshold,
+    max_processing_time: preferences.max_processing_time,
+    fallback_strategy: preferences.fallback_strategy,
+    custom_settings: 'advanced_settings' in preferences ? preferences.advanced_settings : {},
+    ...localPreferences 
+  }), [preferences, localPreferences]);
+
   const handleModelSelectionChange = useCallback((modelName: string, selected: boolean) => {
     console.log('🔧 ========== USER INTERACTION: MODEL SELECTION ==========');
     console.log('🔧 CLICK - Model Selection Change:', { 
@@ -287,13 +300,44 @@ const ModelPreferencesPanel: React.FC = () => {
       hasUnsavedChanges
     });
     
-    const newWeights = { ...ensembleWeights };
+    const currentWeights = currentPreferences.ensemble_weights || ensembleWeights;
+    const newWeights: Record<string, number> = { ...currentWeights };
+    
     if (selected) {
-      newWeights[modelName] = 0.5; // Default weight
-      console.log('🔧 ACTION - Adding model with weight 0.5');
+      // Adding a model - give it a default weight and rebalance
+      const currentTotal = Object.values(newWeights).reduce((sum: number, w: number) => sum + w, 0);
+      const defaultWeight = currentTotal > 0 ? 0.1 : 0.5; // Smaller if others exist
+      newWeights[modelName] = defaultWeight;
+      console.log('🔧 ACTION - Adding model with weight', defaultWeight);
+      
+      // Rebalance to sum to 1.0
+      const newTotal = Object.values(newWeights).reduce((sum: number, w: number) => sum + w, 0);
+      if (newTotal > 0) {
+        Object.keys(newWeights).forEach(key => {
+          newWeights[key] = (newWeights[key] || 0) / newTotal;
+        });
+      }
     } else {
+      // Removing a model - delete it and rebalance remaining
       delete newWeights[modelName];
       console.log('🔧 ACTION - Removing model from weights');
+      
+      // Rebalance remaining weights to sum to 1.0
+      const remainingKeys = Object.keys(newWeights);
+      if (remainingKeys.length > 0) {
+        const currentTotal = Object.values(newWeights).reduce((sum: number, w: number) => sum + w, 0);
+        if (currentTotal > 0) {
+          remainingKeys.forEach(key => {
+            newWeights[key] = (newWeights[key] || 0) / currentTotal;
+          });
+        } else {
+          // Distribute equally if all weights were 0
+          const equalWeight = 1.0 / remainingKeys.length;
+          remainingKeys.forEach(key => {
+            newWeights[key] = equalWeight;
+          });
+        }
+      }
     }
 
     console.log('🔧 AFTER - New State Will Be:', {
@@ -312,28 +356,42 @@ const ModelPreferencesPanel: React.FC = () => {
     });
     setHasUnsavedChanges(true);
     console.log('🔧 ========== END USER INTERACTION ==========');
-  }, [ensembleWeights, localPreferences, hasUnsavedChanges]);
+  }, [currentPreferences, ensembleWeights, hasUnsavedChanges, localPreferences]);
 
   const handleWeightChange = useCallback((modelName: string, weight: number) => {
-    const newWeights = {
-      ...ensembleWeights,
+    const currentWeights = currentPreferences.ensemble_weights || ensembleWeights;
+    const newWeights: Record<string, number> = {
+      ...currentWeights,
       [modelName]: weight,
     };
+
+    console.log('🔧 WEIGHT_CHANGE:', {
+      modelName,
+      oldWeight: currentWeights[modelName] || 0,
+      newWeight: weight,
+      totalBefore: Object.values(currentWeights).reduce((sum: number, w: number) => sum + w, 0).toFixed(3),
+      totalAfter: Object.values(newWeights).reduce((sum: number, w: number) => sum + w, 0).toFixed(3)
+    });
 
     setLocalPreferences(prev => ({
       ...prev,
       ensemble_weights: newWeights,
     }));
     setHasUnsavedChanges(true);
-  }, [ensembleWeights]);
+  }, [currentPreferences, ensembleWeights]);
 
   const handleStrategyChange = useCallback((strategy: FallbackStrategy) => {
+    console.log('🔧 STRATEGY_CHANGE:', { 
+      oldStrategy: currentPreferences.fallback_strategy, 
+      newStrategy: strategy 
+    });
+    
     setLocalPreferences(prev => ({
       ...prev,
       fallback_strategy: strategy,
     }));
     setHasUnsavedChanges(true);
-  }, []);
+  }, [currentPreferences.fallback_strategy]);
 
   const handlePreferenceChange = useCallback((field: keyof ModelPreferences, value: unknown) => {
     setLocalPreferences(prev => ({
@@ -361,19 +419,6 @@ const ModelPreferencesPanel: React.FC = () => {
     setLocalPreferences({});
     setHasUnsavedChanges(false);
   }, [resetToDefaults]);
-
-  // Get current values (local changes override saved preferences)
-  const currentPreferences = { 
-    preferred_strategy: preferences.preferred_strategy,
-    ensemble_weights: preferences.ensemble_weights,
-    quality_preference: preferences.quality_preference,
-    enable_experimental: preferences.enable_experimental,
-    confidence_threshold: preferences.confidence_threshold,
-    max_processing_time: preferences.max_processing_time,
-    fallback_strategy: preferences.fallback_strategy,
-    custom_settings: 'advanced_settings' in preferences ? preferences.advanced_settings : {},
-    ...localPreferences 
-  };
 
   // Use current ensemble weights (including local changes) for UI
   const currentEnsembleWeights = currentPreferences.ensemble_weights || ensembleWeights;

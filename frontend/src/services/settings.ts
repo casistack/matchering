@@ -95,8 +95,24 @@ class SettingsHttpClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        
+        // Handle different error response formats
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        if (errorData.detail) {
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else if (Array.isArray(errorData.detail)) {
+            // Handle Pydantic validation errors array format
+            errorMessage = errorData.detail.map((err: { loc?: string[]; msg?: string }) => 
+              `${err.loc?.join('.') || 'field'}: ${err.msg || 'validation error'}`
+            ).join(', ');
+          } else {
+            errorMessage = JSON.stringify(errorData.detail);
+          }
+        }
+        
         throw new SettingsAPIError(
-          errorData.detail || `HTTP ${response.status}: ${response.statusText}`,
+          errorMessage,
           response.status,
           errorData.code,
           errorData.field,

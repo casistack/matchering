@@ -231,6 +231,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         const total = Object.values(preferences.ensemble_weights).reduce((sum, weight) => sum + weight, 0);
         console.log('🔧 ENSEMBLE_WEIGHTS_TOTAL:', total.toFixed(3));
         console.log('🔧 ENSEMBLE_WEIGHTS_VALID:', (total >= 0.9 && total <= 1.1));
+        
+        // Prevent sending invalid ensemble weights
+        if (total < 0.9 || total > 1.1) {
+          throw new Error(`Ensemble weights must sum to approximately 1.0, got ${total.toFixed(3)}. Please adjust the weights before saving.`);
+        }
       }
       
       if (preferences.confidence_threshold !== undefined) {
@@ -263,6 +268,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       console.log('🔧 =======================================');
       
       handleError(error, 'Update preferences');
+    } finally {
+      // ALWAYS reset loading state, even on error
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [handleError]);
 
