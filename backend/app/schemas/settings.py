@@ -53,7 +53,7 @@ class ModelPreferencesSchema(BaseModel):
     """User's model selection preferences."""
     preferred_strategy: ModelSelectionStrategy = Field(default=ModelSelectionStrategy.AUTO)
     ensemble_weights: Dict[str, float] = Field(
-        default={"huggingface": 0.70, "ast": 0.25, "fallback": 0.05},
+        default={"huggingface_ensemble": 0.70, "ast_model": 0.25, "fallback_classifier": 0.05},
         description="Weights for ensemble models"
     )
     quality_preference: QualityPreference = Field(default=QualityPreference.BALANCED)

@@ -64,9 +64,9 @@ class UserPreferences(Base):
     # Model selection preferences
     preferred_strategy = Column(String(20), nullable=False, default="auto")  # auto, performance, quality, custom
     ensemble_weights = Column(JSON, nullable=False, default={
-        "huggingface": 0.70,
-        "ast": 0.25,
-        "fallback": 0.05
+        "huggingface_ensemble": 0.70,
+        "ast_model": 0.25,
+        "fallback_classifier": 0.05
     })
     quality_preference = Column(String(20), nullable=False, default="balanced")  # fast, balanced, quality
     enable_experimental = Column(Boolean, nullable=False, default=False)

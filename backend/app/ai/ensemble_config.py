@@ -45,9 +45,9 @@ class EnsembleSettings:
                 "a_b_testing_enabled": cls.ENABLE_A_B_TESTING,
             },
             "model_weights": {
-                "huggingface_models": cls.HUGGINGFACE_MODELS_WEIGHT,
+                "huggingface_ensemble": cls.HUGGINGFACE_MODELS_WEIGHT,
                 "ast_model": cls.AST_MODEL_WEIGHT,
-                "fallback": cls.FALLBACK_WEIGHT,
+                "fallback_classifier": cls.FALLBACK_WEIGHT,
             },
             "thresholds": {
                 "min_confidence": cls.MIN_CONFIDENCE_THRESHOLD,

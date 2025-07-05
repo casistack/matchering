@@ -221,11 +221,47 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
+      console.log('🔧 ========== SETTINGS UPDATE ATTEMPT ==========');
+      console.log('🔧 RAW_PREFERENCES_INPUT:', preferences);
+      console.log('🔧 PREFERENCES_KEYS:', Object.keys(preferences));
+      console.log('🔧 PREFERENCES_JSON:', JSON.stringify(preferences, null, 2));
+      
+      // Validate data before sending
+      if (preferences.ensemble_weights) {
+        const total = Object.values(preferences.ensemble_weights).reduce((sum, weight) => sum + weight, 0);
+        console.log('🔧 ENSEMBLE_WEIGHTS_TOTAL:', total.toFixed(3));
+        console.log('🔧 ENSEMBLE_WEIGHTS_VALID:', (total >= 0.9 && total <= 1.1));
+      }
+      
+      if (preferences.confidence_threshold !== undefined) {
+        console.log('🔧 CONFIDENCE_THRESHOLD:', preferences.confidence_threshold);
+        console.log('🔧 CONFIDENCE_VALID:', (preferences.confidence_threshold >= 0.5 && preferences.confidence_threshold <= 0.95));
+      }
+      
+      if (preferences.max_processing_time !== undefined) {
+        console.log('🔧 MAX_PROCESSING_TIME:', preferences.max_processing_time);
+        console.log('🔧 PROCESSING_TIME_VALID:', (preferences.max_processing_time >= 1000 && preferences.max_processing_time <= 10000));
+      }
+      
       const anonymousId = ensureAnonymousId();
+      console.log('🔧 SENDING_TO_BACKEND_WITH_ID:', anonymousId);
+      
       const updatedPreferences = await settingsAPI.updatePreferences(preferences, anonymousId);
+      
+      console.log('🔧 BACKEND_RESPONSE:', updatedPreferences);
+      console.log('🔧 ========== SETTINGS UPDATE SUCCESS ==========');
       
       dispatch({ type: 'UPDATE_PREFERENCES', payload: updatedPreferences });
     } catch (error) {
+      console.log('🔧 ========== SETTINGS UPDATE ERROR ==========');
+      console.log('🔧 ERROR_OBJECT:', error);
+      console.log('🔧 ERROR_MESSAGE:', error instanceof Error ? error.message : 'Unknown error');
+      if (error instanceof Error && 'statusCode' in error) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        console.log('🔧 ERROR_STATUS_CODE:', (error as any).statusCode);
+      }
+      console.log('🔧 =======================================');
+      
       handleError(error, 'Update preferences');
     }
   }, [handleError]);

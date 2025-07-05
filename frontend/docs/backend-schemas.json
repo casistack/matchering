@@ -1,0 +1,2466 @@
+{
+  "generated_at": "2025-07-05T11:27:42.362983",
+  "version": "1.0.0",
+  "description": "Backend API Schemas for Matchering Settings",
+  "schemas": {
+    "ModelPreferencesSchema": {
+      "description": "User's model selection preferences.",
+      "fields": {
+        "preferred_strategy": {
+          "type": "<enum 'ModelSelectionStrategy'>",
+          "required": false,
+          "default": "auto",
+          "description": ""
+        },
+        "ensemble_weights": {
+          "type": "typing.Dict[str, float]",
+          "required": false,
+          "default": {
+            "huggingface_ensemble": 0.7,
+            "ast_model": 0.25,
+            "fallback_classifier": 0.05
+          },
+          "description": "Weights for ensemble models"
+        },
+        "quality_preference": {
+          "type": "<enum 'QualityPreference'>",
+          "required": false,
+          "default": "balanced",
+          "description": ""
+        },
+        "enable_experimental": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": "Enable experimental features"
+        },
+        "confidence_threshold": {
+          "type": "<class 'float'>",
+          "required": false,
+          "default": 0.6,
+          "description": "Minimum confidence threshold"
+        },
+        "max_processing_time": {
+          "type": "<class 'int'>",
+          "required": false,
+          "default": 5000,
+          "description": "Max processing time in milliseconds"
+        },
+        "fallback_strategy": {
+          "type": "<enum 'FallbackStrategy'>",
+          "required": false,
+          "default": "graceful",
+          "description": ""
+        },
+        "custom_settings": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": false,
+          "default": {},
+          "description": "Custom user settings"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          }
+        },
+        "description": "User's model selection preferences.",
+        "properties": {
+          "preferred_strategy": {
+            "$ref": "#/$defs/ModelSelectionStrategy",
+            "default": "auto"
+          },
+          "ensemble_weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {
+              "huggingface_ensemble": 0.7,
+              "ast_model": 0.25,
+              "fallback_classifier": 0.05
+            },
+            "description": "Weights for ensemble models",
+            "title": "Ensemble Weights",
+            "type": "object"
+          },
+          "quality_preference": {
+            "$ref": "#/$defs/QualityPreference",
+            "default": "balanced"
+          },
+          "enable_experimental": {
+            "default": false,
+            "description": "Enable experimental features",
+            "title": "Enable Experimental",
+            "type": "boolean"
+          },
+          "confidence_threshold": {
+            "default": 0.6,
+            "description": "Minimum confidence threshold",
+            "maximum": 0.95,
+            "minimum": 0.5,
+            "title": "Confidence Threshold",
+            "type": "number"
+          },
+          "max_processing_time": {
+            "default": 5000,
+            "description": "Max processing time in milliseconds",
+            "maximum": 10000,
+            "minimum": 1000,
+            "title": "Max Processing Time",
+            "type": "integer"
+          },
+          "fallback_strategy": {
+            "$ref": "#/$defs/FallbackStrategy",
+            "default": "graceful"
+          },
+          "custom_settings": {
+            "additionalProperties": true,
+            "default": {},
+            "description": "Custom user settings",
+            "title": "Custom Settings",
+            "type": "object"
+          }
+        },
+        "title": "ModelPreferencesSchema",
+        "type": "object"
+      }
+    },
+    "ModelPreferencesUpdateSchema": {
+      "description": "Schema for updating model preferences.",
+      "fields": {
+        "preferred_strategy": {
+          "type": "typing.Optional[app.schemas.settings.ModelSelectionStrategy]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "ensemble_weights": {
+          "type": "typing.Optional[typing.Dict[str, float]]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "quality_preference": {
+          "type": "typing.Optional[app.schemas.settings.QualityPreference]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "enable_experimental": {
+          "type": "typing.Optional[bool]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "confidence_threshold": {
+          "type": "typing.Optional[float]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "max_processing_time": {
+          "type": "typing.Optional[int]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "fallback_strategy": {
+          "type": "typing.Optional[app.schemas.settings.FallbackStrategy]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "custom_settings": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          }
+        },
+        "description": "Schema for updating model preferences.",
+        "properties": {
+          "preferred_strategy": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ModelSelectionStrategy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "ensemble_weights": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ensemble Weights"
+          },
+          "quality_preference": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QualityPreference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "enable_experimental": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Enable Experimental"
+          },
+          "confidence_threshold": {
+            "anyOf": [
+              {
+                "maximum": 0.95,
+                "minimum": 0.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confidence Threshold"
+          },
+          "max_processing_time": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1000,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Processing Time"
+          },
+          "fallback_strategy": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FallbackStrategy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "custom_settings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Custom Settings"
+          }
+        },
+        "title": "ModelPreferencesUpdateSchema",
+        "type": "object"
+      }
+    },
+    "UserSettingsProfileSchema": {
+      "description": "Complete user settings profile.",
+      "fields": {
+        "id": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "name": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "description": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "preferred_strategy": {
+          "type": "<enum 'ModelSelectionStrategy'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "ensemble_weights": {
+          "type": "typing.Dict[str, float]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "quality_preference": {
+          "type": "<enum 'QualityPreference'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "enable_experimental": {
+          "type": "<class 'bool'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "confidence_threshold": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "max_processing_time": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "fallback_strategy": {
+          "type": "<enum 'FallbackStrategy'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "advanced_settings": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": false,
+          "default": {},
+          "description": ""
+        },
+        "feature_flags": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": false,
+          "default": {},
+          "description": ""
+        },
+        "is_default": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": ""
+        },
+        "is_custom": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": ""
+        },
+        "is_system_profile": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": ""
+        },
+        "usage_count": {
+          "type": "<class 'int'>",
+          "required": false,
+          "default": 0,
+          "description": ""
+        },
+        "created_at": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "updated_at": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "last_used": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          }
+        },
+        "description": "Complete user settings profile.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "preferred_strategy": {
+            "$ref": "#/$defs/ModelSelectionStrategy"
+          },
+          "ensemble_weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Ensemble Weights",
+            "type": "object"
+          },
+          "quality_preference": {
+            "$ref": "#/$defs/QualityPreference"
+          },
+          "enable_experimental": {
+            "title": "Enable Experimental",
+            "type": "boolean"
+          },
+          "confidence_threshold": {
+            "title": "Confidence Threshold",
+            "type": "number"
+          },
+          "max_processing_time": {
+            "title": "Max Processing Time",
+            "type": "integer"
+          },
+          "fallback_strategy": {
+            "$ref": "#/$defs/FallbackStrategy"
+          },
+          "advanced_settings": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Advanced Settings",
+            "type": "object"
+          },
+          "feature_flags": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Feature Flags",
+            "type": "object"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "is_custom": {
+            "default": false,
+            "title": "Is Custom",
+            "type": "boolean"
+          },
+          "is_system_profile": {
+            "default": false,
+            "title": "Is System Profile",
+            "type": "boolean"
+          },
+          "usage_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Usage Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "last_used": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Used"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "preferred_strategy",
+          "ensemble_weights",
+          "quality_preference",
+          "enable_experimental",
+          "confidence_threshold",
+          "max_processing_time",
+          "fallback_strategy",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserSettingsProfileSchema",
+        "type": "object"
+      }
+    },
+    "UserSettingsProfileCreateSchema": {
+      "description": "Schema for creating a new settings profile.",
+      "fields": {
+        "name": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "description": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "preferences": {
+          "type": "<class 'app.schemas.settings.ModelPreferencesSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "copy_from_profile_id": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Copy settings from existing profile"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelPreferencesSchema": {
+            "description": "User's model selection preferences.",
+            "properties": {
+              "preferred_strategy": {
+                "$ref": "#/$defs/ModelSelectionStrategy",
+                "default": "auto"
+              },
+              "ensemble_weights": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "default": {
+                  "huggingface_ensemble": 0.7,
+                  "ast_model": 0.25,
+                  "fallback_classifier": 0.05
+                },
+                "description": "Weights for ensemble models",
+                "title": "Ensemble Weights",
+                "type": "object"
+              },
+              "quality_preference": {
+                "$ref": "#/$defs/QualityPreference",
+                "default": "balanced"
+              },
+              "enable_experimental": {
+                "default": false,
+                "description": "Enable experimental features",
+                "title": "Enable Experimental",
+                "type": "boolean"
+              },
+              "confidence_threshold": {
+                "default": 0.6,
+                "description": "Minimum confidence threshold",
+                "maximum": 0.95,
+                "minimum": 0.5,
+                "title": "Confidence Threshold",
+                "type": "number"
+              },
+              "max_processing_time": {
+                "default": 5000,
+                "description": "Max processing time in milliseconds",
+                "maximum": 10000,
+                "minimum": 1000,
+                "title": "Max Processing Time",
+                "type": "integer"
+              },
+              "fallback_strategy": {
+                "$ref": "#/$defs/FallbackStrategy",
+                "default": "graceful"
+              },
+              "custom_settings": {
+                "additionalProperties": true,
+                "default": {},
+                "description": "Custom user settings",
+                "title": "Custom Settings",
+                "type": "object"
+              }
+            },
+            "title": "ModelPreferencesSchema",
+            "type": "object"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          }
+        },
+        "description": "Schema for creating a new settings profile.",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "preferences": {
+            "$ref": "#/$defs/ModelPreferencesSchema"
+          },
+          "copy_from_profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Copy settings from existing profile",
+            "title": "Copy From Profile Id"
+          }
+        },
+        "required": [
+          "name",
+          "preferences"
+        ],
+        "title": "UserSettingsProfileCreateSchema",
+        "type": "object"
+      }
+    },
+    "UserSettingsProfileUpdateSchema": {
+      "description": "Schema for updating an existing settings profile.",
+      "fields": {
+        "name": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "description": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "preferences": {
+          "type": "typing.Optional[app.schemas.settings.ModelPreferencesUpdateSchema]",
+          "required": false,
+          "default": null,
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelPreferencesUpdateSchema": {
+            "description": "Schema for updating model preferences.",
+            "properties": {
+              "preferred_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ModelSelectionStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "ensemble_weights": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "number"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ensemble Weights"
+              },
+              "quality_preference": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/QualityPreference"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "enable_experimental": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Enable Experimental"
+              },
+              "confidence_threshold": {
+                "anyOf": [
+                  {
+                    "maximum": 0.95,
+                    "minimum": 0.5,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Confidence Threshold"
+              },
+              "max_processing_time": {
+                "anyOf": [
+                  {
+                    "maximum": 10000,
+                    "minimum": 1000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Max Processing Time"
+              },
+              "fallback_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FallbackStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "custom_settings": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Custom Settings"
+              }
+            },
+            "title": "ModelPreferencesUpdateSchema",
+            "type": "object"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          }
+        },
+        "description": "Schema for updating an existing settings profile.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ModelPreferencesUpdateSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "UserSettingsProfileUpdateSchema",
+        "type": "object"
+      }
+    },
+    "AvailableModelInfoSchema": {
+      "description": "Information about an available AI model.",
+      "fields": {
+        "id": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "name": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "description": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "type": {
+          "type": "<enum 'ModelType'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "performance": {
+          "type": "<class 'app.schemas.settings.ModelPerformanceInfoSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "is_available": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": true,
+          "description": ""
+        },
+        "requirements": {
+          "type": "typing.List[str]",
+          "required": false,
+          "default": [],
+          "description": "System requirements"
+        },
+        "version": {
+          "type": "<class 'str'>",
+          "required": false,
+          "default": "1.0.0",
+          "description": ""
+        },
+        "provider": {
+          "type": "<class 'str'>",
+          "required": false,
+          "default": "Matchering",
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "ModelPerformanceInfoSchema": {
+            "description": "Performance information for an AI model.",
+            "properties": {
+              "average_processing_time": {
+                "description": "Average processing time in milliseconds",
+                "minimum": 0,
+                "title": "Average Processing Time",
+                "type": "number"
+              },
+              "accuracy": {
+                "description": "Model accuracy (0.0-1.0)",
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "title": "Accuracy",
+                "type": "number"
+              },
+              "memory_usage": {
+                "description": "Memory usage in MB",
+                "minimum": 0,
+                "title": "Memory Usage",
+                "type": "number"
+              },
+              "gpu_required": {
+                "default": false,
+                "description": "Whether GPU is required",
+                "title": "Gpu Required",
+                "type": "boolean"
+              },
+              "supported_genres": {
+                "default": [],
+                "description": "List of supported music genres",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Supported Genres",
+                "type": "array"
+              }
+            },
+            "required": [
+              "average_processing_time",
+              "accuracy",
+              "memory_usage"
+            ],
+            "title": "ModelPerformanceInfoSchema",
+            "type": "object"
+          },
+          "ModelType": {
+            "description": "Types of AI models available.",
+            "enum": [
+              "huggingface",
+              "ast",
+              "custom"
+            ],
+            "title": "ModelType",
+            "type": "string"
+          }
+        },
+        "description": "Information about an available AI model.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/$defs/ModelType"
+          },
+          "performance": {
+            "$ref": "#/$defs/ModelPerformanceInfoSchema"
+          },
+          "is_available": {
+            "default": true,
+            "title": "Is Available",
+            "type": "boolean"
+          },
+          "requirements": {
+            "default": [],
+            "description": "System requirements",
+            "items": {
+              "type": "string"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "version": {
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "provider": {
+            "default": "Matchering",
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "type",
+          "performance"
+        ],
+        "title": "AvailableModelInfoSchema",
+        "type": "object"
+      }
+    },
+    "ModelPerformanceInfoSchema": {
+      "description": "Performance information for an AI model.",
+      "fields": {
+        "average_processing_time": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Average processing time in milliseconds"
+        },
+        "accuracy": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Model accuracy (0.0-1.0)"
+        },
+        "memory_usage": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Memory usage in MB"
+        },
+        "gpu_required": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": "Whether GPU is required"
+        },
+        "supported_genres": {
+          "type": "typing.List[str]",
+          "required": false,
+          "default": [],
+          "description": "List of supported music genres"
+        }
+      },
+      "json_schema": {
+        "description": "Performance information for an AI model.",
+        "properties": {
+          "average_processing_time": {
+            "description": "Average processing time in milliseconds",
+            "minimum": 0,
+            "title": "Average Processing Time",
+            "type": "number"
+          },
+          "accuracy": {
+            "description": "Model accuracy (0.0-1.0)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "memory_usage": {
+            "description": "Memory usage in MB",
+            "minimum": 0,
+            "title": "Memory Usage",
+            "type": "number"
+          },
+          "gpu_required": {
+            "default": false,
+            "description": "Whether GPU is required",
+            "title": "Gpu Required",
+            "type": "boolean"
+          },
+          "supported_genres": {
+            "default": [],
+            "description": "List of supported music genres",
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Genres",
+            "type": "array"
+          }
+        },
+        "required": [
+          "average_processing_time",
+          "accuracy",
+          "memory_usage"
+        ],
+        "title": "ModelPerformanceInfoSchema",
+        "type": "object"
+      }
+    },
+    "SettingsConfigResponse": {
+      "description": "Complete settings configuration response.",
+      "fields": {
+        "current_profile": {
+          "type": "<class 'app.schemas.settings.UserSettingsProfileSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "available_profiles": {
+          "type": "typing.List[app.schemas.settings.UserSettingsProfileSchema]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "available_models": {
+          "type": "typing.List[app.schemas.settings.AvailableModelInfoSchema]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "system_defaults": {
+          "type": "<class 'app.schemas.settings.ModelPreferencesSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "feature_flags": {
+          "type": "typing.Dict[str, bool]",
+          "required": false,
+          "default": {},
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "AvailableModelInfoSchema": {
+            "description": "Information about an available AI model.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "description": {
+                "title": "Description",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/ModelType"
+              },
+              "performance": {
+                "$ref": "#/$defs/ModelPerformanceInfoSchema"
+              },
+              "is_available": {
+                "default": true,
+                "title": "Is Available",
+                "type": "boolean"
+              },
+              "requirements": {
+                "default": [],
+                "description": "System requirements",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Requirements",
+                "type": "array"
+              },
+              "version": {
+                "default": "1.0.0",
+                "title": "Version",
+                "type": "string"
+              },
+              "provider": {
+                "default": "Matchering",
+                "title": "Provider",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "description",
+              "type",
+              "performance"
+            ],
+            "title": "AvailableModelInfoSchema",
+            "type": "object"
+          },
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelPerformanceInfoSchema": {
+            "description": "Performance information for an AI model.",
+            "properties": {
+              "average_processing_time": {
+                "description": "Average processing time in milliseconds",
+                "minimum": 0,
+                "title": "Average Processing Time",
+                "type": "number"
+              },
+              "accuracy": {
+                "description": "Model accuracy (0.0-1.0)",
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "title": "Accuracy",
+                "type": "number"
+              },
+              "memory_usage": {
+                "description": "Memory usage in MB",
+                "minimum": 0,
+                "title": "Memory Usage",
+                "type": "number"
+              },
+              "gpu_required": {
+                "default": false,
+                "description": "Whether GPU is required",
+                "title": "Gpu Required",
+                "type": "boolean"
+              },
+              "supported_genres": {
+                "default": [],
+                "description": "List of supported music genres",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Supported Genres",
+                "type": "array"
+              }
+            },
+            "required": [
+              "average_processing_time",
+              "accuracy",
+              "memory_usage"
+            ],
+            "title": "ModelPerformanceInfoSchema",
+            "type": "object"
+          },
+          "ModelPreferencesSchema": {
+            "description": "User's model selection preferences.",
+            "properties": {
+              "preferred_strategy": {
+                "$ref": "#/$defs/ModelSelectionStrategy",
+                "default": "auto"
+              },
+              "ensemble_weights": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "default": {
+                  "huggingface_ensemble": 0.7,
+                  "ast_model": 0.25,
+                  "fallback_classifier": 0.05
+                },
+                "description": "Weights for ensemble models",
+                "title": "Ensemble Weights",
+                "type": "object"
+              },
+              "quality_preference": {
+                "$ref": "#/$defs/QualityPreference",
+                "default": "balanced"
+              },
+              "enable_experimental": {
+                "default": false,
+                "description": "Enable experimental features",
+                "title": "Enable Experimental",
+                "type": "boolean"
+              },
+              "confidence_threshold": {
+                "default": 0.6,
+                "description": "Minimum confidence threshold",
+                "maximum": 0.95,
+                "minimum": 0.5,
+                "title": "Confidence Threshold",
+                "type": "number"
+              },
+              "max_processing_time": {
+                "default": 5000,
+                "description": "Max processing time in milliseconds",
+                "maximum": 10000,
+                "minimum": 1000,
+                "title": "Max Processing Time",
+                "type": "integer"
+              },
+              "fallback_strategy": {
+                "$ref": "#/$defs/FallbackStrategy",
+                "default": "graceful"
+              },
+              "custom_settings": {
+                "additionalProperties": true,
+                "default": {},
+                "description": "Custom user settings",
+                "title": "Custom Settings",
+                "type": "object"
+              }
+            },
+            "title": "ModelPreferencesSchema",
+            "type": "object"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "ModelType": {
+            "description": "Types of AI models available.",
+            "enum": [
+              "huggingface",
+              "ast",
+              "custom"
+            ],
+            "title": "ModelType",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          },
+          "UserSettingsProfileSchema": {
+            "description": "Complete user settings profile.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "preferred_strategy": {
+                "$ref": "#/$defs/ModelSelectionStrategy"
+              },
+              "ensemble_weights": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "title": "Ensemble Weights",
+                "type": "object"
+              },
+              "quality_preference": {
+                "$ref": "#/$defs/QualityPreference"
+              },
+              "enable_experimental": {
+                "title": "Enable Experimental",
+                "type": "boolean"
+              },
+              "confidence_threshold": {
+                "title": "Confidence Threshold",
+                "type": "number"
+              },
+              "max_processing_time": {
+                "title": "Max Processing Time",
+                "type": "integer"
+              },
+              "fallback_strategy": {
+                "$ref": "#/$defs/FallbackStrategy"
+              },
+              "advanced_settings": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Advanced Settings",
+                "type": "object"
+              },
+              "feature_flags": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Feature Flags",
+                "type": "object"
+              },
+              "is_default": {
+                "default": false,
+                "title": "Is Default",
+                "type": "boolean"
+              },
+              "is_custom": {
+                "default": false,
+                "title": "Is Custom",
+                "type": "boolean"
+              },
+              "is_system_profile": {
+                "default": false,
+                "title": "Is System Profile",
+                "type": "boolean"
+              },
+              "usage_count": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Usage Count",
+                "type": "integer"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              },
+              "last_used": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Used"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "preferred_strategy",
+              "ensemble_weights",
+              "quality_preference",
+              "enable_experimental",
+              "confidence_threshold",
+              "max_processing_time",
+              "fallback_strategy",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "UserSettingsProfileSchema",
+            "type": "object"
+          }
+        },
+        "description": "Complete settings configuration response.",
+        "properties": {
+          "current_profile": {
+            "$ref": "#/$defs/UserSettingsProfileSchema"
+          },
+          "available_profiles": {
+            "items": {
+              "$ref": "#/$defs/UserSettingsProfileSchema"
+            },
+            "title": "Available Profiles",
+            "type": "array"
+          },
+          "available_models": {
+            "items": {
+              "$ref": "#/$defs/AvailableModelInfoSchema"
+            },
+            "title": "Available Models",
+            "type": "array"
+          },
+          "system_defaults": {
+            "$ref": "#/$defs/ModelPreferencesSchema"
+          },
+          "feature_flags": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "default": {},
+            "title": "Feature Flags",
+            "type": "object"
+          }
+        },
+        "required": [
+          "current_profile",
+          "available_profiles",
+          "available_models",
+          "system_defaults"
+        ],
+        "title": "SettingsConfigResponse",
+        "type": "object"
+      }
+    },
+    "SettingsUpdateResponse": {
+      "description": "Response after updating settings.",
+      "fields": {
+        "success": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": true,
+          "description": ""
+        },
+        "profile": {
+          "type": "<class 'app.schemas.settings.UserSettingsProfileSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "cache_invalidated": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": false,
+          "description": ""
+        },
+        "message": {
+          "type": "<class 'str'>",
+          "required": false,
+          "default": "Settings updated successfully",
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          },
+          "UserSettingsProfileSchema": {
+            "description": "Complete user settings profile.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "preferred_strategy": {
+                "$ref": "#/$defs/ModelSelectionStrategy"
+              },
+              "ensemble_weights": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "title": "Ensemble Weights",
+                "type": "object"
+              },
+              "quality_preference": {
+                "$ref": "#/$defs/QualityPreference"
+              },
+              "enable_experimental": {
+                "title": "Enable Experimental",
+                "type": "boolean"
+              },
+              "confidence_threshold": {
+                "title": "Confidence Threshold",
+                "type": "number"
+              },
+              "max_processing_time": {
+                "title": "Max Processing Time",
+                "type": "integer"
+              },
+              "fallback_strategy": {
+                "$ref": "#/$defs/FallbackStrategy"
+              },
+              "advanced_settings": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Advanced Settings",
+                "type": "object"
+              },
+              "feature_flags": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Feature Flags",
+                "type": "object"
+              },
+              "is_default": {
+                "default": false,
+                "title": "Is Default",
+                "type": "boolean"
+              },
+              "is_custom": {
+                "default": false,
+                "title": "Is Custom",
+                "type": "boolean"
+              },
+              "is_system_profile": {
+                "default": false,
+                "title": "Is System Profile",
+                "type": "boolean"
+              },
+              "usage_count": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Usage Count",
+                "type": "integer"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              },
+              "last_used": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Used"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "preferred_strategy",
+              "ensemble_weights",
+              "quality_preference",
+              "enable_experimental",
+              "confidence_threshold",
+              "max_processing_time",
+              "fallback_strategy",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "UserSettingsProfileSchema",
+            "type": "object"
+          }
+        },
+        "description": "Response after updating settings.",
+        "properties": {
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          },
+          "profile": {
+            "$ref": "#/$defs/UserSettingsProfileSchema"
+          },
+          "cache_invalidated": {
+            "default": false,
+            "title": "Cache Invalidated",
+            "type": "boolean"
+          },
+          "message": {
+            "default": "Settings updated successfully",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile"
+        ],
+        "title": "SettingsUpdateResponse",
+        "type": "object"
+      }
+    },
+    "ProfileSelectionResponse": {
+      "description": "Response after selecting a profile.",
+      "fields": {
+        "success": {
+          "type": "<class 'bool'>",
+          "required": false,
+          "default": true,
+          "description": ""
+        },
+        "active_profile": {
+          "type": "<class 'app.schemas.settings.UserSettingsProfileSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "previous_profile_id": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "message": {
+          "type": "<class 'str'>",
+          "required": false,
+          "default": "Profile selected successfully",
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "FallbackStrategy": {
+            "description": "Fallback strategy when primary models fail.",
+            "enum": [
+              "strict",
+              "graceful",
+              "aggressive"
+            ],
+            "title": "FallbackStrategy",
+            "type": "string"
+          },
+          "ModelSelectionStrategy": {
+            "description": "Model selection strategy options.",
+            "enum": [
+              "auto",
+              "performance",
+              "quality",
+              "custom"
+            ],
+            "title": "ModelSelectionStrategy",
+            "type": "string"
+          },
+          "QualityPreference": {
+            "description": "Quality vs speed preference options.",
+            "enum": [
+              "fast",
+              "balanced",
+              "quality"
+            ],
+            "title": "QualityPreference",
+            "type": "string"
+          },
+          "UserSettingsProfileSchema": {
+            "description": "Complete user settings profile.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "preferred_strategy": {
+                "$ref": "#/$defs/ModelSelectionStrategy"
+              },
+              "ensemble_weights": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "title": "Ensemble Weights",
+                "type": "object"
+              },
+              "quality_preference": {
+                "$ref": "#/$defs/QualityPreference"
+              },
+              "enable_experimental": {
+                "title": "Enable Experimental",
+                "type": "boolean"
+              },
+              "confidence_threshold": {
+                "title": "Confidence Threshold",
+                "type": "number"
+              },
+              "max_processing_time": {
+                "title": "Max Processing Time",
+                "type": "integer"
+              },
+              "fallback_strategy": {
+                "$ref": "#/$defs/FallbackStrategy"
+              },
+              "advanced_settings": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Advanced Settings",
+                "type": "object"
+              },
+              "feature_flags": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Feature Flags",
+                "type": "object"
+              },
+              "is_default": {
+                "default": false,
+                "title": "Is Default",
+                "type": "boolean"
+              },
+              "is_custom": {
+                "default": false,
+                "title": "Is Custom",
+                "type": "boolean"
+              },
+              "is_system_profile": {
+                "default": false,
+                "title": "Is System Profile",
+                "type": "boolean"
+              },
+              "usage_count": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Usage Count",
+                "type": "integer"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              },
+              "last_used": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Used"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "preferred_strategy",
+              "ensemble_weights",
+              "quality_preference",
+              "enable_experimental",
+              "confidence_threshold",
+              "max_processing_time",
+              "fallback_strategy",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "UserSettingsProfileSchema",
+            "type": "object"
+          }
+        },
+        "description": "Response after selecting a profile.",
+        "properties": {
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          },
+          "active_profile": {
+            "$ref": "#/$defs/UserSettingsProfileSchema"
+          },
+          "previous_profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Previous Profile Id"
+          },
+          "message": {
+            "default": "Profile selected successfully",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "active_profile"
+        ],
+        "title": "ProfileSelectionResponse",
+        "type": "object"
+      }
+    },
+    "UserSettingsAnalyticsSchema": {
+      "description": "User settings usage analytics.",
+      "fields": {
+        "total_processing_jobs": {
+          "type": "<class 'int'>",
+          "required": false,
+          "default": 0,
+          "description": ""
+        },
+        "average_processing_time": {
+          "type": "<class 'float'>",
+          "required": false,
+          "default": 0.0,
+          "description": ""
+        },
+        "most_used_model": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": ""
+        },
+        "model_usage_distribution": {
+          "type": "typing.Dict[str, int]",
+          "required": false,
+          "default": {},
+          "description": ""
+        },
+        "quality_ratings": {
+          "type": "typing.Dict[str, float]",
+          "required": false,
+          "default": {},
+          "description": ""
+        },
+        "performance_trends": {
+          "type": "typing.Dict[str, typing.List[float]]",
+          "required": false,
+          "default": {},
+          "description": ""
+        },
+        "period_days": {
+          "type": "<class 'int'>",
+          "required": false,
+          "default": 30,
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "description": "User settings usage analytics.",
+        "properties": {
+          "total_processing_jobs": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Total Processing Jobs",
+            "type": "integer"
+          },
+          "average_processing_time": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Average Processing Time",
+            "type": "number"
+          },
+          "most_used_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Most Used Model"
+          },
+          "model_usage_distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Model Usage Distribution",
+            "type": "object"
+          },
+          "quality_ratings": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Quality Ratings",
+            "type": "object"
+          },
+          "performance_trends": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Performance Trends",
+            "type": "object"
+          },
+          "period_days": {
+            "default": 30,
+            "maximum": 365,
+            "minimum": 1,
+            "title": "Period Days",
+            "type": "integer"
+          }
+        },
+        "title": "UserSettingsAnalyticsSchema",
+        "type": "object"
+      }
+    },
+    "SystemStatusResponse": {
+      "description": "System status for settings service.",
+      "fields": {
+        "available_models_count": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "active_users_count": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "cache_hit_rate": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "average_response_time": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "feature_flags": {
+          "type": "typing.Dict[str, bool]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        },
+        "last_updated": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": ""
+        }
+      },
+      "json_schema": {
+        "description": "System status for settings service.",
+        "properties": {
+          "available_models_count": {
+            "title": "Available Models Count",
+            "type": "integer"
+          },
+          "active_users_count": {
+            "title": "Active Users Count",
+            "type": "integer"
+          },
+          "cache_hit_rate": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "average_response_time": {
+            "minimum": 0.0,
+            "title": "Average Response Time",
+            "type": "number"
+          },
+          "feature_flags": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Feature Flags",
+            "type": "object"
+          },
+          "last_updated": {
+            "format": "date-time",
+            "title": "Last Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available_models_count",
+          "active_users_count",
+          "cache_hit_rate",
+          "average_response_time",
+          "feature_flags",
+          "last_updated"
+        ],
+        "title": "SystemStatusResponse",
+        "type": "object"
+      }
+    }
+  },
+  "enums": {
+    "ModelSelectionStrategy": {
+      "description": "Model selection strategy options.",
+      "values": [
+        "auto",
+        "performance",
+        "quality",
+        "custom"
+      ]
+    },
+    "QualityPreference": {
+      "description": "Quality vs speed preference options.",
+      "values": [
+        "fast",
+        "balanced",
+        "quality"
+      ]
+    },
+    "FallbackStrategy": {
+      "description": "Fallback strategy when primary models fail.",
+      "values": [
+        "strict",
+        "graceful",
+        "aggressive"
+      ]
+    },
+    "ModelType": {
+      "description": "Types of AI models available.",
+      "values": [
+        "huggingface",
+        "ast",
+        "custom"
+      ]
+    }
+  },
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/config",
+      "description": "Get complete user configuration",
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "response_schema": "SettingsConfigResponse",
+      "example_response": "settings_config_example"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/settings/preferences",
+      "description": "Update user model preferences",
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "request_schema": "ModelPreferencesUpdateSchema",
+      "response_schema": "SettingsUpdateResponse",
+      "example_request": "preferences_update_example",
+      "example_response": "preferences_update_response_example"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/settings/profiles",
+      "description": "Create new settings profile",
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "request_schema": "UserSettingsProfileCreateSchema",
+      "response_schema": "UserSettingsProfileSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/profiles",
+      "description": "List all user profiles",
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "response_schema": "List[UserSettingsProfileSchema]"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/settings/profiles/{profile_id}/select",
+      "description": "Select active profile",
+      "path_params": [
+        "profile_id (UUID)"
+      ],
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "response_schema": "ProfileSelectionResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/settings/profiles/{profile_id}",
+      "description": "Update existing profile",
+      "path_params": [
+        "profile_id (UUID)"
+      ],
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "request_schema": "UserSettingsProfileUpdateSchema",
+      "response_schema": "UserSettingsProfileSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/settings/profiles/{profile_id}",
+      "description": "Delete profile",
+      "path_params": [
+        "profile_id (UUID)"
+      ],
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "response_schema": "{\"success\": true}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/models",
+      "description": "Get available AI models",
+      "response_schema": "List[AvailableModelInfoSchema]"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/analytics",
+      "description": "Get user analytics",
+      "query_params": [
+        "anonymous_id (optional)",
+        "days (optional, default=30)"
+      ],
+      "response_schema": "UserSettingsAnalyticsSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/system/status",
+      "description": "Get system status",
+      "response_schema": "SystemStatusResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/settings/reset-defaults",
+      "description": "Reset to default preferences",
+      "query_params": [
+        "anonymous_id (optional)",
+        "user_id (optional)"
+      ],
+      "response_schema": "SettingsUpdateResponse"
+    }
+  ]
+}
