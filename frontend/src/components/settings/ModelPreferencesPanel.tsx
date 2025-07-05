@@ -70,12 +70,13 @@ const ModelCard: React.FC<ModelCardProps> = ({
   disabled = false,
 }) => {
   // Debug logging for ModelCard
-  console.log(`🔧 ModelCard ${model.name}:`, { 
+  console.log(`🔧 STEP 3 - ModelCard Render [${model.name}]:`, { 
     id: model.id, 
     name: model.name, 
     isSelected, 
-    weight, 
-    disabled 
+    weight: weight.toFixed(3), 
+    disabled,
+    timestamp: new Date().toISOString().split('T')[1]?.slice(0, 8) || 'N/A' // Just time
   });
   const getModelIcon = (modelId: string) => {
     switch (modelId) {
@@ -128,11 +129,17 @@ const ModelCard: React.FC<ModelCardProps> = ({
               <Checkbox
                 checked={isSelected}
                 onChange={(e) => {
-                  console.log(`🔧 Checkbox clicked for ${model.name}:`, { 
-                    checked: e.target.checked, 
-                    modelId: model.id 
+                  console.log(`🔧 ========== CHECKBOX CLICK [${model.name}] ==========`);
+                  console.log(`🔧 CHECKBOX - User clicked:`, { 
+                    modelName: model.name,
+                    modelId: model.id,
+                    previouslyChecked: isSelected,
+                    nowChecked: e.target.checked,
+                    weightBefore: weight.toFixed(3),
+                    timestamp: new Date().toISOString()
                   });
                   onSelectionChange(e.target.checked);
+                  console.log(`🔧 CHECKBOX - Event handler called for ${model.id}`);
                 }}
                 disabled={disabled}
                 color="primary"
@@ -247,36 +254,65 @@ const ModelPreferencesPanel: React.FC = () => {
   const [localPreferences, setLocalPreferences] = useState<Partial<ModelPreferences>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Debug logging
-  console.log('🔧 ModelPreferencesPanel Debug:', {
-    config: config?.current_profile,
+  // Debug logging - COMPREHENSIVE FLOW TRACKING
+  console.log('🔧 ========== ModelPreferencesPanel RENDER ==========');
+  console.log('🔧 STEP 1 - Raw Data:', {
+    configExists: !!config,
+    currentProfile: config?.current_profile ? 'EXISTS' : 'NULL',
     selectedModels,
+    selectedModelsCount: selectedModels.length,
     ensembleWeights,
+    ensembleWeightsKeys: Object.keys(ensembleWeights),
     availableModels: availableModels.map(m => ({ id: m.id, name: m.name })),
-    isLoading
+    availableModelsCount: availableModels.length,
+    isLoading,
+    hasUnsavedChanges,
+    localPreferences: Object.keys(localPreferences).length > 0 ? localPreferences : 'EMPTY'
   });
 
   // Get current preferences
   const preferences = config?.current_profile || DEFAULT_PREFERENCES;
 
   const handleModelSelectionChange = useCallback((modelName: string, selected: boolean) => {
-    console.log('🔧 Model Selection Change:', { modelName, selected, currentWeights: ensembleWeights });
+    console.log('🔧 ========== USER INTERACTION: MODEL SELECTION ==========');
+    console.log('🔧 CLICK - Model Selection Change:', { 
+      modelName, 
+      selected, 
+      timestamp: new Date().toISOString()
+    });
+    console.log('🔧 BEFORE - Current State:', {
+      currentWeights: ensembleWeights,
+      currentSelected: Object.keys(ensembleWeights),
+      localPreferences: Object.keys(localPreferences).length > 0 ? localPreferences : 'EMPTY',
+      hasUnsavedChanges
+    });
     
     const newWeights = { ...ensembleWeights };
     if (selected) {
       newWeights[modelName] = 0.5; // Default weight
+      console.log('🔧 ACTION - Adding model with weight 0.5');
     } else {
       delete newWeights[modelName];
+      console.log('🔧 ACTION - Removing model from weights');
     }
 
-    console.log('🔧 New Weights:', newWeights);
+    console.log('🔧 AFTER - New State Will Be:', {
+      newWeights,
+      newSelected: Object.keys(newWeights),
+      newTotal: Object.values(newWeights).reduce((sum: number, w: number) => sum + w, 0).toFixed(3)
+    });
 
-    setLocalPreferences(prev => ({
-      ...prev,
-      ensemble_weights: newWeights,
-    }));
+    setLocalPreferences(prev => {
+      const updated = {
+        ...prev,
+        ensemble_weights: newWeights,
+      };
+      console.log('🔧 LOCAL_PREFERENCES_UPDATE:', updated);
+      return updated;
+    });
     setHasUnsavedChanges(true);
-  }, [ensembleWeights]);
+    console.log('🔧 ========== END USER INTERACTION ==========');
+  }, [ensembleWeights, localPreferences, hasUnsavedChanges]);
 
   const handleWeightChange = useCallback((modelName: string, weight: number) => {
     const newWeights = {
@@ -347,6 +383,29 @@ const ModelPreferencesPanel: React.FC = () => {
   const totalWeight = Object.values(currentEnsembleWeights).reduce((sum: number, weight: number) => sum + weight, 0);
   const isWeightValid = Math.abs(totalWeight - 1.0) < 0.1;
 
+  // Debug logging - CALCULATED STATE
+  console.log('🔧 STEP 2 - Calculated State:', {
+    currentEnsembleWeights,
+    currentSelectedModels,
+    currentSelectedModelsCount: currentSelectedModels.length,
+    totalWeight: totalWeight.toFixed(3),
+    isWeightValid,
+    preferences: preferences.ensemble_weights ? 'HAS_WEIGHTS' : 'NO_WEIGHTS'
+  });
+
+  // Final debug log - render summary
+  console.log('🔧 ========== RENDER COMPLETE - SUMMARY ==========');
+  console.log('🔧 FINAL STATE:', {
+    totalModelsAvailable: availableModels.length,
+    totalModelsSelected: currentSelectedModels.length,
+    selectedModelIds: currentSelectedModels,
+    totalWeight: totalWeight.toFixed(3) + '%',
+    isValid: isWeightValid,
+    hasChanges: hasUnsavedChanges,
+    timestamp: new Date().toISOString().split('T')[1]?.slice(0, 8) || 'N/A'
+  });
+  console.log('🔧 =====================================');
+
   return (
     <Box>
       {/* Debug Info */}
@@ -413,18 +472,32 @@ const ModelPreferencesPanel: React.FC = () => {
 
       {/* Model Selection Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {availableModels.map((model) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={model.id}>
-            <ModelCard
-              model={model}
-              isSelected={currentSelectedModels.includes(model.id)}
-              weight={currentEnsembleWeights[model.id] || 0.1}
-              onSelectionChange={(selected) => handleModelSelectionChange(model.id, selected)}
-              onWeightChange={(weight) => handleWeightChange(model.id, weight)}
-              disabled={isLoading}
-            />
-          </Grid>
-        ))}
+        {availableModels.map((model) => {
+          const isModelSelected = currentSelectedModels.includes(model.id);
+          const modelWeight = currentEnsembleWeights[model.id] || 0.1;
+          
+          // Debug logging for ModelCard creation
+          console.log(`🔧 STEP 4 - Creating ModelCard [${model.name}]:`, {
+            modelId: model.id,
+            isInCurrentSelected: isModelSelected,
+            currentSelectedModels,
+            weightFromCurrent: modelWeight,
+            currentEnsembleWeights: Object.keys(currentEnsembleWeights)
+          });
+          
+          return (
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={model.id}>
+              <ModelCard
+                model={model}
+                isSelected={isModelSelected}
+                weight={modelWeight}
+                onSelectionChange={(selected) => handleModelSelectionChange(model.id, selected)}
+                onWeightChange={(weight) => handleWeightChange(model.id, weight)}
+                disabled={isLoading}
+              />
+            </Grid>
+          );
+        })}
       </Grid>
 
       {/* Advanced Settings */}

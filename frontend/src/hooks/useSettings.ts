@@ -70,29 +70,11 @@ export const useModelSelection = () => {
     [config, updatePreferences]
   );
 
-  // Map old model names to new model IDs for backward compatibility
-  const mapOldModelNames = (weights: Record<string, number>): Record<string, number> => {
-    const nameMapping: Record<string, string> = {
-      'huggingface': 'huggingface_ensemble',
-      'ast': 'ast_model', 
-      'fallback': 'fallback_classifier'
-    };
-    
-    const mappedWeights: Record<string, number> = {};
-    Object.entries(weights).forEach(([key, value]) => {
-      const newKey = nameMapping[key] || key;
-      mappedWeights[newKey] = value;
-    });
-    
-    return mappedWeights;
-  };
-
-  const originalWeights = config?.current_profile?.ensemble_weights || {};
-  const mappedWeights = mapOldModelNames(originalWeights);
-
+  const ensembleWeights = config?.current_profile?.ensemble_weights || {};
+  
   return {
-    selectedModels: Object.keys(mappedWeights),
-    ensembleWeights: mappedWeights,
+    selectedModels: Object.keys(ensembleWeights),
+    ensembleWeights: ensembleWeights,
     availableModels: config?.available_models || [],
     updateSelectedModels,
     updateEnsembleWeights,
