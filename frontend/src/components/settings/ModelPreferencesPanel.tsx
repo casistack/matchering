@@ -69,17 +69,25 @@ const ModelCard: React.FC<ModelCardProps> = ({
   onWeightChange,
   disabled = false,
 }) => {
-  const getModelIcon = (modelName: string) => {
-    switch (modelName) {
-      case 'ensemble':
+  // Debug logging for ModelCard
+  console.log(`🔧 ModelCard ${model.name}:`, { 
+    id: model.id, 
+    name: model.name, 
+    isSelected, 
+    weight, 
+    disabled 
+  });
+  const getModelIcon = (modelId: string) => {
+    switch (modelId) {
+      case 'huggingface_ensemble':
         return <BrainIcon color="primary" />;
+      case 'ast_model':
+        return <QualityIcon color="success" />;
+      case 'fallback_classifier':
+        return <TuneIcon color="action" />;
       case 'distilhubert':
       case 'wav2vec2':
         return <SpeedIcon color="secondary" />;
-      case 'ast':
-        return <QualityIcon color="success" />;
-      case 'huggingface':
-        return <BrainIcon color="primary" />;
       default:
         return <TuneIcon color="action" />;
     }
@@ -109,7 +117,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
       <CardContent>
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Box display="flex" alignItems="center" gap={1}>
-            {getModelIcon(model.name)}
+            {getModelIcon(model.id)}
             <Typography variant="h6" component="h3">
               {model.name}
             </Typography>
@@ -119,7 +127,13 @@ const ModelCard: React.FC<ModelCardProps> = ({
             control={
               <Checkbox
                 checked={isSelected}
-                onChange={(e) => onSelectionChange(e.target.checked)}
+                onChange={(e) => {
+                  console.log(`🔧 Checkbox clicked for ${model.name}:`, { 
+                    checked: e.target.checked, 
+                    modelId: model.id 
+                  });
+                  onSelectionChange(e.target.checked);
+                }}
                 disabled={disabled}
                 color="primary"
                 sx={{
@@ -233,16 +247,29 @@ const ModelPreferencesPanel: React.FC = () => {
   const [localPreferences, setLocalPreferences] = useState<Partial<ModelPreferences>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Debug logging
+  console.log('🔧 ModelPreferencesPanel Debug:', {
+    config: config?.current_profile,
+    selectedModels,
+    ensembleWeights,
+    availableModels: availableModels.map(m => ({ id: m.id, name: m.name })),
+    isLoading
+  });
+
   // Get current preferences
   const preferences = config?.current_profile || DEFAULT_PREFERENCES;
 
   const handleModelSelectionChange = useCallback((modelName: string, selected: boolean) => {
+    console.log('🔧 Model Selection Change:', { modelName, selected, currentWeights: ensembleWeights });
+    
     const newWeights = { ...ensembleWeights };
     if (selected) {
       newWeights[modelName] = 0.5; // Default weight
     } else {
       delete newWeights[modelName];
     }
+
+    console.log('🔧 New Weights:', newWeights);
 
     setLocalPreferences(prev => ({
       ...prev,
@@ -299,10 +326,6 @@ const ModelPreferencesPanel: React.FC = () => {
     setHasUnsavedChanges(false);
   }, [resetToDefaults]);
 
-  // Calculate total ensemble weight
-  const totalWeight = Object.values(ensembleWeights).reduce((sum: number, weight: number) => sum + weight, 0);
-  const isWeightValid = Math.abs(totalWeight - 1.0) < 0.1;
-
   // Get current values (local changes override saved preferences)
   const currentPreferences = { 
     preferred_strategy: preferences.preferred_strategy,
@@ -316,8 +339,29 @@ const ModelPreferencesPanel: React.FC = () => {
     ...localPreferences 
   };
 
+  // Use current ensemble weights (including local changes) for UI
+  const currentEnsembleWeights = currentPreferences.ensemble_weights || ensembleWeights;
+  const currentSelectedModels = Object.keys(currentEnsembleWeights);
+
+  // Calculate total ensemble weight using current weights
+  const totalWeight = Object.values(currentEnsembleWeights).reduce((sum: number, weight: number) => sum + weight, 0);
+  const isWeightValid = Math.abs(totalWeight - 1.0) < 0.1;
+
   return (
     <Box>
+      {/* Debug Info */}
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="caption" component="div">
+          <strong>🔧 Debug Info:</strong><br/>
+          Available Models: {availableModels.length}<br/>
+          Selected Models: [{currentSelectedModels.join(', ')}]<br/>
+          Current Weights: {JSON.stringify(currentEnsembleWeights)}<br/>
+          Original Weights: {JSON.stringify(ensembleWeights)}<br/>
+          Has Unsaved Changes: {hasUnsavedChanges ? 'Yes' : 'No'}<br/>
+          Loading: {isLoading ? 'Yes' : 'No'}
+        </Typography>
+      </Alert>
+
       {/* Action Buttons */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h2">
@@ -358,7 +402,7 @@ const ModelPreferencesPanel: React.FC = () => {
       </Box>
 
       {/* Ensemble Weight Validation */}
-      {!isWeightValid && selectedModels.length > 1 && (
+      {!isWeightValid && currentSelectedModels.length > 1 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <Typography variant="body2">
             Ensemble weights should sum to approximately 100%. 
@@ -370,13 +414,13 @@ const ModelPreferencesPanel: React.FC = () => {
       {/* Model Selection Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {availableModels.map((model) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={model.name}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={model.id}>
             <ModelCard
               model={model}
-              isSelected={selectedModels.includes(model.name)}
-              weight={ensembleWeights[model.name] || 0.1}
-              onSelectionChange={(selected) => handleModelSelectionChange(model.name, selected)}
-              onWeightChange={(weight) => handleWeightChange(model.name, weight)}
+              isSelected={currentSelectedModels.includes(model.id)}
+              weight={currentEnsembleWeights[model.id] || 0.1}
+              onSelectionChange={(selected) => handleModelSelectionChange(model.id, selected)}
+              onWeightChange={(weight) => handleWeightChange(model.id, weight)}
               disabled={isLoading}
             />
           </Grid>

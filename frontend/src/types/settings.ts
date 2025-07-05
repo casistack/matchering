@@ -158,9 +158,9 @@ export const SETTINGS_STORAGE_KEYS = {
 export const DEFAULT_PREFERENCES: ModelPreferences = {
   preferred_strategy: 'auto',
   ensemble_weights: {
-    'huggingface': 0.7,
-    'ast': 0.25,
-    'fallback': 0.05
+    'huggingface_ensemble': 0.7,
+    'ast_model': 0.25,
+    'fallback_classifier': 0.05
   },
   quality_preference: 'balanced',
   enable_experimental: false,

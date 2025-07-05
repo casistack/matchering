@@ -203,10 +203,13 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       dispatch({ type: 'SET_LOADING', payload: true });
       
       const id = anonymousId || ensureAnonymousId();
+      console.log('🔧 Loading user config for:', id);
       const config = await settingsAPI.getUserConfiguration(id);
+      console.log('🔧 Loaded config:', config);
       
       dispatch({ type: 'SET_CONFIG', payload: config });
     } catch (error) {
+      console.error('🔧 Error loading config:', error);
       handleError(error, 'Load configuration');
     }
   }, [handleError]);

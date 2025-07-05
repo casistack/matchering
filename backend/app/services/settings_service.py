@@ -492,7 +492,7 @@ class SettingsService:
         
         defaults = ModelPreferencesSchema(
             preferred_strategy=ModelSelectionStrategy.AUTO,
-            ensemble_weights={"huggingface": 0.70, "ast": 0.25, "fallback": 0.05},
+            ensemble_weights={"huggingface_ensemble": 0.70, "ast_model": 0.25, "fallback_classifier": 0.05},
             quality_preference=QualityPreference.BALANCED,
             enable_experimental=False,
             confidence_threshold=0.6,
