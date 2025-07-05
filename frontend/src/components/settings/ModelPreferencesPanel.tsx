@@ -99,8 +99,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
         transition: 'all 0.2s ease-in-out',
         border: isSelected ? 2 : 1,
         borderColor: isSelected ? 'primary.main' : 'divider',
+        backgroundColor: isSelected ? 'action.selected' : 'background.paper',
         '&:hover': {
           boxShadow: isSelected ? 4 : 2,
+          backgroundColor: isSelected ? 'action.selected' : 'action.hover',
         },
       }}
     >
@@ -120,6 +122,14 @@ const ModelCard: React.FC<ModelCardProps> = ({
                 onChange={(e) => onSelectionChange(e.target.checked)}
                 disabled={disabled}
                 color="primary"
+                sx={{
+                  '& .MuiSvgIcon-root': {
+                    fontSize: 28,
+                  },
+                  '&.Mui-checked': {
+                    color: 'primary.main',
+                  },
+                }}
               />
             }
             label=""

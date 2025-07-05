@@ -205,7 +205,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   isLoading,
 }) => {
   // Loading state
-  if (isLoading || !analytics) {
+  if (isLoading && !analytics) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" py={8}>
         <Box textAlign="center">
@@ -214,6 +214,81 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             Loading analytics...
           </Typography>
         </Box>
+      </Box>
+    );
+  }
+
+  // No analytics data state (show empty state with mock data)
+  if (!analytics) {
+    return (
+      <Box>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Usage Analytics
+        </Typography>
+        
+        <Alert severity="info" sx={{ mb: 4 }}>
+          <Typography variant="body2">
+            <strong>Start Processing Audio Files</strong>
+            <br />
+            Analytics data will appear here once you begin processing audio files. 
+            Upload some tracks and experiment with different model settings to see personalized insights.
+          </Typography>
+        </Alert>
+
+        {/* Show placeholder metrics for demo */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <MetricCard
+              title="Total Processing Jobs"
+              value="0"
+              subtitle="No jobs yet"
+              icon={<AnalyticsIcon />}
+              color="primary"
+            />
+          </Grid>
+          
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <MetricCard
+              title="Average Processing Time"
+              value="0.0s"
+              subtitle="No data"
+              icon={<SpeedIcon />}
+              color="secondary"
+            />
+          </Grid>
+          
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <MetricCard
+              title="Most Used Model"
+              value="None"
+              subtitle="No usage yet"
+              icon={<BrainIcon />}
+              color="success"
+            />
+          </Grid>
+          
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <MetricCard
+              title="Analysis Period"
+              value="30 days"
+              subtitle="Ready to track"
+              icon={<TrendingUpIcon />}
+              color="warning"
+            />
+          </Grid>
+        </Grid>
+
+        {/* System Status if available */}
+        {systemStatus && (
+          <Alert severity="info" sx={{ mt: 3 }}>
+            <Typography variant="body2">
+              <strong>System Performance:</strong> {systemStatus.available_models_count} models available
+              • Active users: {systemStatus.active_users_count}
+              • Cache hit rate: {(systemStatus.cache_hit_rate * 100).toFixed(1)}%
+              • Avg response: {systemStatus.average_response_time.toFixed(1)}ms
+            </Typography>
+          </Alert>
+        )}
       </Box>
     );
   }

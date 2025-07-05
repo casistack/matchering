@@ -327,7 +327,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
    */
   useEffect(() => {
     loadUserConfig();
-  }, [loadUserConfig]);
+    loadAnalytics();
+    loadSystemStatus();
+  }, [loadUserConfig, loadAnalytics, loadSystemStatus]);
 
   /**
    * Context value
