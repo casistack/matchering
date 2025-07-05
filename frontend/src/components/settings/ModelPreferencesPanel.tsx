@@ -453,8 +453,8 @@ const ModelPreferencesPanel: React.FC = () => {
 
   return (
     <Box>
-      {/* Debug Info */}
-      <Alert severity="info" sx={{ mb: 2 }}>
+{/* Debug Info - Commented out for production */}
+      {/* <Alert severity="info" sx={{ mb: 2 }}>
         <Typography variant="caption" component="div">
           <strong>🔧 Debug Info:</strong><br/>
           Available Models: {availableModels.length}<br/>
@@ -464,7 +464,7 @@ const ModelPreferencesPanel: React.FC = () => {
           Has Unsaved Changes: {hasUnsavedChanges ? 'Yes' : 'No'}<br/>
           Loading: {isLoading ? 'Yes' : 'No'}
         </Typography>
-      </Alert>
+      </Alert> */}
 
       {/* Action Buttons */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
