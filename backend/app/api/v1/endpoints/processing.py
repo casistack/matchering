@@ -44,6 +44,7 @@ from app.utils.request_utils import (
     create_task_response
 )
 from app.utils.validation_utils import validate_uuid_string, validate_pagination_params, validate_processing_mode
+from app.utils.enterprise_logger import enterprise_logger, log_error, log_user_action, log_user_settings
 from app.workers.audio_tasks import process_audio_auto_master, process_audio_reference_master
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,22 @@ async def create_processing_job(
     
     # Debug: Log the actual job data received
     logger.info(f"Job data received: {job_data.model_dump()}")
+    
+    # Log to enterprise logging system
+    log_user_action(
+        "processing_job_creation_started",
+        {
+            "processing_mode": job_data.processing_mode,
+            "input_file_id": str(job_data.input_file_id),
+            "reference_file_id": str(job_data.reference_file_id) if job_data.reference_file_id else None,
+            "client_ip": client_ip,
+            "request_id": request_id,
+            "job_data": job_data.model_dump()
+        }
+    )
+    
+    # Log user settings to enterprise system
+    log_user_settings(job_data.model_dump(), "processing_job_creation")
     
     try:
         # Validate input file exists
@@ -284,10 +301,40 @@ async def create_processing_job(
         
     except ValidationError as e:
         logger.warning(f"Job creation validation failed: {e.message}")
-        raise HTTPException(status_code=400, detail=e.to_dict())
+        
+        # Log validation error to enterprise system
+        log_error(
+            "Processing job creation validation failed",
+            error=str(e),
+            error_type="ValidationError",
+            context={
+                "processing_mode": job_data.processing_mode,
+                "input_file_id": str(job_data.input_file_id),
+                "client_ip": client_ip,
+                "request_id": request_id,
+                "job_data": job_data.model_dump(),
+                "error_details": e.to_dict()
+            }
+        )
+        
+        raise HTTPException(status_code=422, detail=e.to_dict())  # Use 422 for validation errors
     
     except Exception as e:
         logger.error(f"Job creation failed: {str(e)}")
+        
+        # Log unexpected error to enterprise system
+        log_error(
+            "Processing job creation unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            context={
+                "processing_mode": job_data.processing_mode if job_data else "unknown",
+                "client_ip": client_ip,
+                "request_id": request_id,
+                "job_data": job_data.model_dump() if job_data else {}
+            }
+        )
+        
         raise HTTPException(
             status_code=500,
             detail={

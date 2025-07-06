@@ -9,10 +9,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import uvicorn
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+from datetime import datetime
 from typing import AsyncGenerator
 
 from app.api.v1.api import api_router
@@ -20,6 +22,8 @@ from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import ValidationError, ProcessingError
 from app.models import Base
+from app.middleware.enterprise_logging import EnterpriseLoggingMiddleware
+from app.utils.enterprise_logger import log_error
 
 # Configure logging
 logging.basicConfig(
@@ -131,6 +135,9 @@ if not settings.DEBUG:
         allowed_hosts=settings.ALLOWED_HOSTS
     )
 
+# Enterprise logging middleware (before CORS to capture all requests)
+app.add_middleware(EnterpriseLoggingMiddleware)
+
 # CORS middleware for frontend integration
 app.add_middleware(
     CORSMiddleware,
@@ -144,11 +151,51 @@ app.add_middleware(
 
 
 # Global exception handlers
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Handle FastAPI automatic request validation errors (422)."""
+    # Log to enterprise logging system
+    log_error(
+        "FastAPI request validation failed",
+        error=str(exc),
+        error_type="RequestValidationError",
+        context={
+            "endpoint": str(request.url.path),
+            "method": request.method,
+            "validation_errors": exc.errors(),
+            "body": str(exc.body) if hasattr(exc, 'body') else "unknown"
+        }
+    )
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "data": None,
+            "error": "Request validation failed",
+            "details": exc.errors(),
+            "timestamp": datetime.utcnow().isoformat(),
+            "requestId": getattr(request.state, "request_id", "unknown"),
+        }
+    )
+
+
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
-    """Handle validation errors with proper API response format."""
+    """Handle custom validation errors with proper API response format."""
+    # Log to enterprise logging system
+    log_error(
+        "Custom validation error handled",
+        error=str(exc),
+        error_type="ValidationError",
+        context={
+            "endpoint": str(request.url.path),
+            "method": request.method
+        }
+    )
+    
     return JSONResponse(
-        status_code=400,
+        status_code=422,  # Changed from 400 to 422 for consistency
         content={
             "success": False,
             "data": None,

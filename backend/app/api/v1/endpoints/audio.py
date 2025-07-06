@@ -17,6 +17,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.exceptions import AudioFileError, ValidationError, StorageError
+from app.utils.enterprise_logger import enterprise_logger, log_error, log_user_action
 from app.models.audio import AudioFile, AudioMetadata
 from app.schemas.audio import (
     AudioFileAPIResponse, 
@@ -79,6 +80,18 @@ async def upload_audio(
     
     logger.info(f"Audio upload started - File: {file.filename}, Client: {client_ip}, Request: {request_id}")
     
+    # Log to enterprise logging system
+    log_user_action(
+        "audio_upload_started",
+        {
+            "filename": file.filename,
+            "client_ip": client_ip,
+            "request_id": request_id,
+            "processing_mode": processing_mode,
+            "content_type": file.content_type or "unknown"
+        }
+    )
+    
     try:
         # Validate request
         if not file.filename:
@@ -114,6 +127,18 @@ async def upload_audio(
                 pass
             
             logger.info(f"Duplicate file detected: {checksum[:8]}... (existing: {existing_file.id})")
+            
+            # Log duplicate detection to enterprise system
+            log_user_action(
+                "duplicate_file_detected",
+                {
+                    "filename": file.filename,
+                    "checksum": checksum[:8],
+                    "existing_file_id": str(existing_file.id),
+                    "client_ip": client_ip,
+                    "request_id": request_id
+                }
+            )
             
             return create_api_response(
                 data={
@@ -190,14 +215,56 @@ async def upload_audio(
         
     except ValidationError as e:
         logger.warning(f"Upload validation failed: {e.message}")
-        raise HTTPException(status_code=400, detail=e.to_dict())
+        
+        # Log validation error to enterprise system
+        log_error(
+            "Audio upload validation failed",
+            error=str(e),
+            error_type="ValidationError",
+            context={
+                "filename": file.filename if file else "unknown",
+                "client_ip": client_ip,
+                "request_id": request_id,
+                "processing_mode": processing_mode,
+                "error_details": e.to_dict()
+            }
+        )
+        
+        raise HTTPException(status_code=422, detail=e.to_dict())  # Use 422 for validation errors
     
     except StorageError as e:
         logger.error(f"Upload storage failed: {e.message}")
+        
+        # Log storage error to enterprise system
+        log_error(
+            "Audio upload storage failed",
+            error=str(e),
+            error_type="StorageError",
+            context={
+                "filename": file.filename if file else "unknown",
+                "client_ip": client_ip,
+                "request_id": request_id,
+                "error_details": e.to_dict()
+            }
+        )
+        
         raise HTTPException(status_code=500, detail=e.to_dict())
     
     except Exception as e:
         logger.error(f"Upload failed with unexpected error: {str(e)}")
+        
+        # Log unexpected error to enterprise system
+        log_error(
+            "Audio upload unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            context={
+                "filename": file.filename if file else "unknown",
+                "client_ip": client_ip,
+                "request_id": request_id
+            }
+        )
+        
         raise HTTPException(
             status_code=500, 
             detail={

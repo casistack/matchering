@@ -13,7 +13,7 @@ import threading
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -193,6 +193,46 @@ class EnterpriseLogger:
     @contextmanager
     def request_context(self, request_data: Dict[str, Any]):
         """Context manager for request tracking."""
+        
+        context = RequestContext(
+            user_id=request_data.get("user_id"),
+            session_id=request_data.get("session_id"),
+            client_ip=request_data.get("client_ip"),
+            user_agent=request_data.get("user_agent"),
+            endpoint=request_data.get("endpoint"),
+            method=request_data.get("method")
+        )
+        
+        self._request_contexts.current = context
+        
+        # Log request start
+        self.log_request_start(context, request_data)
+        
+        try:
+            yield context
+        except Exception as e:
+            self.log_error("Request failed", error=str(e), context=context.to_dict())
+            raise
+        finally:
+            # Log request end
+            self.log_request_end(context)
+            self._request_contexts.current = None
+
+    @asynccontextmanager
+    async def async_request_context(self, request_data: Dict[str, Any]):
+        """
+        Async context manager for request tracking.
+        
+        This method provides an async version of request_context for use in
+        async contexts like FastAPI middleware. It provides the same functionality
+        as the synchronous version but is compatible with async/await syntax.
+        
+        Args:
+            request_data: Dictionary containing request information (endpoint, method, etc.)
+            
+        Yields:
+            RequestContext: The context object for the current request
+        """
         
         context = RequestContext(
             user_id=request_data.get("user_id"),
