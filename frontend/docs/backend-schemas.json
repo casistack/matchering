@@ -1,7 +1,7 @@
 {
-  "generated_at": "2025-07-05T11:27:42.362983",
+  "generated_at": "2025-07-06T11:59:05.139445",
   "version": "1.0.0",
-  "description": "Backend API Schemas for Matchering Settings",
+  "description": "Backend API Schemas for Matchering Settings and Processing Jobs",
   "schemas": {
     "ModelPreferencesSchema": {
       "description": "User's model selection preferences.",
@@ -2307,6 +2307,1812 @@
         "title": "SystemStatusResponse",
         "type": "object"
       }
+    },
+    "ProcessingJobCreate": {
+      "description": "Processing job creation request.",
+      "fields": {
+        "input_file_id": {
+          "type": "<class 'uuid.UUID'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Input audio file ID"
+        },
+        "reference_file_id": {
+          "type": "typing.Optional[uuid.UUID]",
+          "required": false,
+          "default": null,
+          "description": "Reference file ID (for reference mastering)"
+        },
+        "processing_mode": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Processing mode (auto, reference, hybrid)"
+        },
+        "settings": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": false,
+          "default": "PydanticUndefined",
+          "description": "Processing settings"
+        },
+        "priority": {
+          "type": "<class 'int'>",
+          "required": false,
+          "default": 5,
+          "description": "Job priority (1=highest, 10=lowest)"
+        }
+      },
+      "json_schema": {
+        "description": "Processing job creation request.",
+        "properties": {
+          "input_file_id": {
+            "description": "Input audio file ID",
+            "format": "uuid",
+            "title": "Input File Id",
+            "type": "string"
+          },
+          "reference_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Reference file ID (for reference mastering)",
+            "title": "Reference File Id"
+          },
+          "processing_mode": {
+            "description": "Processing mode (auto, reference, hybrid)",
+            "title": "Processing Mode",
+            "type": "string"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "description": "Processing settings",
+            "title": "Settings",
+            "type": "object"
+          },
+          "priority": {
+            "default": 5,
+            "description": "Job priority (1=highest, 10=lowest)",
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Priority",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input_file_id",
+          "processing_mode"
+        ],
+        "title": "ProcessingJobCreate",
+        "type": "object"
+      }
+    },
+    "ProcessingJobResponse": {
+      "description": "Processing job response model.",
+      "fields": {
+        "id": {
+          "type": "<class 'uuid.UUID'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job identifier"
+        },
+        "input_file_id": {
+          "type": "<class 'uuid.UUID'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Input file ID"
+        },
+        "reference_file_id": {
+          "type": "typing.Optional[uuid.UUID]",
+          "required": false,
+          "default": null,
+          "description": "Reference file ID"
+        },
+        "output_file_path": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Output file path"
+        },
+        "processing_mode": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Processing mode"
+        },
+        "settings": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Processing settings"
+        },
+        "status": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job status"
+        },
+        "queue_position": {
+          "type": "typing.Optional[int]",
+          "required": false,
+          "default": null,
+          "description": "Position in queue"
+        },
+        "priority": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job priority"
+        },
+        "created_at": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job creation time"
+        },
+        "started_at": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": "Job start time"
+        },
+        "completed_at": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": "Job completion time"
+        },
+        "current_stage": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Current processing stage"
+        },
+        "progress_percentage": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Overall progress percentage"
+        },
+        "estimated_completion": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": "Estimated completion time"
+        },
+        "result_metadata": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Processing results"
+        },
+        "error_message": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Error message if failed"
+        },
+        "error_code": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Error code if failed"
+        },
+        "retry_count": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of retry attempts"
+        },
+        "processing_duration": {
+          "type": "typing.Optional[float]",
+          "required": false,
+          "default": null,
+          "description": "Processing time in seconds"
+        },
+        "cpu_time": {
+          "type": "typing.Optional[float]",
+          "required": false,
+          "default": null,
+          "description": "CPU time used"
+        },
+        "memory_peak": {
+          "type": "typing.Optional[int]",
+          "required": false,
+          "default": null,
+          "description": "Peak memory usage in bytes"
+        }
+      },
+      "json_schema": {
+        "description": "Processing job response model.",
+        "properties": {
+          "id": {
+            "description": "Job identifier",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_file_id": {
+            "description": "Input file ID",
+            "format": "uuid",
+            "title": "Input File Id",
+            "type": "string"
+          },
+          "reference_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Reference file ID",
+            "title": "Reference File Id"
+          },
+          "output_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output file path",
+            "title": "Output File Path"
+          },
+          "processing_mode": {
+            "description": "Processing mode",
+            "title": "Processing Mode",
+            "type": "string"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "description": "Processing settings",
+            "title": "Settings",
+            "type": "object"
+          },
+          "status": {
+            "description": "Job status",
+            "title": "Status",
+            "type": "string"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Position in queue",
+            "title": "Queue Position"
+          },
+          "priority": {
+            "description": "Job priority",
+            "title": "Priority",
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "Job creation time",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Job start time",
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Job completion time",
+            "title": "Completed At"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current processing stage",
+            "title": "Current Stage"
+          },
+          "progress_percentage": {
+            "description": "Overall progress percentage",
+            "title": "Progress Percentage",
+            "type": "number"
+          },
+          "estimated_completion": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Estimated completion time",
+            "title": "Estimated Completion"
+          },
+          "result_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Processing results",
+            "title": "Result Metadata"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Error message if failed",
+            "title": "Error Message"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Error code if failed",
+            "title": "Error Code"
+          },
+          "retry_count": {
+            "description": "Number of retry attempts",
+            "title": "Retry Count",
+            "type": "integer"
+          },
+          "processing_duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Processing time in seconds",
+            "title": "Processing Duration"
+          },
+          "cpu_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "CPU time used",
+            "title": "Cpu Time"
+          },
+          "memory_peak": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Peak memory usage in bytes",
+            "title": "Memory Peak"
+          }
+        },
+        "required": [
+          "id",
+          "input_file_id",
+          "processing_mode",
+          "settings",
+          "status",
+          "priority",
+          "created_at",
+          "progress_percentage",
+          "retry_count"
+        ],
+        "title": "ProcessingJobResponse",
+        "type": "object"
+      }
+    },
+    "ProcessingJobListResponse": {
+      "description": "Processing job list response model.",
+      "fields": {
+        "jobs": {
+          "type": "typing.List[app.schemas.processing.ProcessingJobResponse]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "List of processing jobs"
+        },
+        "pagination": {
+          "type": "<class 'app.schemas.common.PaginationInfo'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Pagination information"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "PaginationInfo": {
+            "description": "Pagination information in responses.",
+            "properties": {
+              "total": {
+                "description": "Total number of items",
+                "minimum": 0,
+                "title": "Total",
+                "type": "integer"
+              },
+              "skip": {
+                "description": "Number of items skipped",
+                "minimum": 0,
+                "title": "Skip",
+                "type": "integer"
+              },
+              "limit": {
+                "description": "Maximum items returned",
+                "minimum": 1,
+                "title": "Limit",
+                "type": "integer"
+              },
+              "has_more": {
+                "description": "Whether there are more items available",
+                "title": "Has More",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "total",
+              "skip",
+              "limit",
+              "has_more"
+            ],
+            "title": "PaginationInfo",
+            "type": "object"
+          },
+          "ProcessingJobResponse": {
+            "description": "Processing job response model.",
+            "properties": {
+              "id": {
+                "description": "Job identifier",
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "input_file_id": {
+                "description": "Input file ID",
+                "format": "uuid",
+                "title": "Input File Id",
+                "type": "string"
+              },
+              "reference_file_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Reference file ID",
+                "title": "Reference File Id"
+              },
+              "output_file_path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Output file path",
+                "title": "Output File Path"
+              },
+              "processing_mode": {
+                "description": "Processing mode",
+                "title": "Processing Mode",
+                "type": "string"
+              },
+              "settings": {
+                "additionalProperties": true,
+                "description": "Processing settings",
+                "title": "Settings",
+                "type": "object"
+              },
+              "status": {
+                "description": "Job status",
+                "title": "Status",
+                "type": "string"
+              },
+              "queue_position": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Position in queue",
+                "title": "Queue Position"
+              },
+              "priority": {
+                "description": "Job priority",
+                "title": "Priority",
+                "type": "integer"
+              },
+              "created_at": {
+                "description": "Job creation time",
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Job start time",
+                "title": "Started At"
+              },
+              "completed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Job completion time",
+                "title": "Completed At"
+              },
+              "current_stage": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Current processing stage",
+                "title": "Current Stage"
+              },
+              "progress_percentage": {
+                "description": "Overall progress percentage",
+                "title": "Progress Percentage",
+                "type": "number"
+              },
+              "estimated_completion": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Estimated completion time",
+                "title": "Estimated Completion"
+              },
+              "result_metadata": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Processing results",
+                "title": "Result Metadata"
+              },
+              "error_message": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Error message if failed",
+                "title": "Error Message"
+              },
+              "error_code": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Error code if failed",
+                "title": "Error Code"
+              },
+              "retry_count": {
+                "description": "Number of retry attempts",
+                "title": "Retry Count",
+                "type": "integer"
+              },
+              "processing_duration": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Processing time in seconds",
+                "title": "Processing Duration"
+              },
+              "cpu_time": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "CPU time used",
+                "title": "Cpu Time"
+              },
+              "memory_peak": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Peak memory usage in bytes",
+                "title": "Memory Peak"
+              }
+            },
+            "required": [
+              "id",
+              "input_file_id",
+              "processing_mode",
+              "settings",
+              "status",
+              "priority",
+              "created_at",
+              "progress_percentage",
+              "retry_count"
+            ],
+            "title": "ProcessingJobResponse",
+            "type": "object"
+          }
+        },
+        "description": "Processing job list response model.",
+        "properties": {
+          "jobs": {
+            "description": "List of processing jobs",
+            "items": {
+              "$ref": "#/$defs/ProcessingJobResponse"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/$defs/PaginationInfo",
+            "description": "Pagination information"
+          }
+        },
+        "required": [
+          "jobs",
+          "pagination"
+        ],
+        "title": "ProcessingJobListResponse",
+        "type": "object"
+      }
+    },
+    "ProcessingJobDetailResponse": {
+      "description": "Detailed processing job response with progress history.",
+      "fields": {
+        "job": {
+          "type": "<class 'app.schemas.processing.ProcessingJobResponse'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job information"
+        },
+        "progress_history": {
+          "type": "typing.List[app.schemas.processing.JobProgressResponse]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Progress history"
+        },
+        "input_file": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Input file information"
+        },
+        "reference_file": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Reference file information"
+        },
+        "output_file": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Output file information"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "JobProgressResponse": {
+            "description": "Job progress response model.",
+            "properties": {
+              "id": {
+                "description": "Progress entry ID",
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "job_id": {
+                "description": "Associated job ID",
+                "format": "uuid",
+                "title": "Job Id",
+                "type": "string"
+              },
+              "stage": {
+                "description": "Processing stage",
+                "title": "Stage",
+                "type": "string"
+              },
+              "progress_percentage": {
+                "description": "Stage progress percentage",
+                "title": "Progress Percentage",
+                "type": "number"
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Progress message",
+                "title": "Message"
+              },
+              "timestamp": {
+                "description": "Progress timestamp",
+                "format": "date-time",
+                "title": "Timestamp",
+                "type": "string"
+              },
+              "stage_started_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Stage start time",
+                "title": "Stage Started At"
+              },
+              "stage_duration": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Stage duration in seconds",
+                "title": "Stage Duration"
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Additional details",
+                "title": "Details"
+              },
+              "warnings": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Stage warnings",
+                "title": "Warnings"
+              }
+            },
+            "required": [
+              "id",
+              "job_id",
+              "stage",
+              "progress_percentage",
+              "timestamp"
+            ],
+            "title": "JobProgressResponse",
+            "type": "object"
+          },
+          "ProcessingJobResponse": {
+            "description": "Processing job response model.",
+            "properties": {
+              "id": {
+                "description": "Job identifier",
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "input_file_id": {
+                "description": "Input file ID",
+                "format": "uuid",
+                "title": "Input File Id",
+                "type": "string"
+              },
+              "reference_file_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Reference file ID",
+                "title": "Reference File Id"
+              },
+              "output_file_path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Output file path",
+                "title": "Output File Path"
+              },
+              "processing_mode": {
+                "description": "Processing mode",
+                "title": "Processing Mode",
+                "type": "string"
+              },
+              "settings": {
+                "additionalProperties": true,
+                "description": "Processing settings",
+                "title": "Settings",
+                "type": "object"
+              },
+              "status": {
+                "description": "Job status",
+                "title": "Status",
+                "type": "string"
+              },
+              "queue_position": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Position in queue",
+                "title": "Queue Position"
+              },
+              "priority": {
+                "description": "Job priority",
+                "title": "Priority",
+                "type": "integer"
+              },
+              "created_at": {
+                "description": "Job creation time",
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Job start time",
+                "title": "Started At"
+              },
+              "completed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Job completion time",
+                "title": "Completed At"
+              },
+              "current_stage": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Current processing stage",
+                "title": "Current Stage"
+              },
+              "progress_percentage": {
+                "description": "Overall progress percentage",
+                "title": "Progress Percentage",
+                "type": "number"
+              },
+              "estimated_completion": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Estimated completion time",
+                "title": "Estimated Completion"
+              },
+              "result_metadata": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Processing results",
+                "title": "Result Metadata"
+              },
+              "error_message": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Error message if failed",
+                "title": "Error Message"
+              },
+              "error_code": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Error code if failed",
+                "title": "Error Code"
+              },
+              "retry_count": {
+                "description": "Number of retry attempts",
+                "title": "Retry Count",
+                "type": "integer"
+              },
+              "processing_duration": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Processing time in seconds",
+                "title": "Processing Duration"
+              },
+              "cpu_time": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "CPU time used",
+                "title": "Cpu Time"
+              },
+              "memory_peak": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Peak memory usage in bytes",
+                "title": "Memory Peak"
+              }
+            },
+            "required": [
+              "id",
+              "input_file_id",
+              "processing_mode",
+              "settings",
+              "status",
+              "priority",
+              "created_at",
+              "progress_percentage",
+              "retry_count"
+            ],
+            "title": "ProcessingJobResponse",
+            "type": "object"
+          }
+        },
+        "description": "Detailed processing job response with progress history.",
+        "properties": {
+          "job": {
+            "$ref": "#/$defs/ProcessingJobResponse",
+            "description": "Job information"
+          },
+          "progress_history": {
+            "description": "Progress history",
+            "items": {
+              "$ref": "#/$defs/JobProgressResponse"
+            },
+            "title": "Progress History",
+            "type": "array"
+          },
+          "input_file": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Input file information",
+            "title": "Input File"
+          },
+          "reference_file": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Reference file information",
+            "title": "Reference File"
+          },
+          "output_file": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output file information",
+            "title": "Output File"
+          }
+        },
+        "required": [
+          "job",
+          "progress_history"
+        ],
+        "title": "ProcessingJobDetailResponse",
+        "type": "object"
+      }
+    },
+    "JobProgressResponse": {
+      "description": "Job progress response model.",
+      "fields": {
+        "id": {
+          "type": "<class 'uuid.UUID'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Progress entry ID"
+        },
+        "job_id": {
+          "type": "<class 'uuid.UUID'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Associated job ID"
+        },
+        "stage": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Processing stage"
+        },
+        "progress_percentage": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Stage progress percentage"
+        },
+        "message": {
+          "type": "typing.Optional[str]",
+          "required": false,
+          "default": null,
+          "description": "Progress message"
+        },
+        "timestamp": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Progress timestamp"
+        },
+        "stage_started_at": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": "Stage start time"
+        },
+        "stage_duration": {
+          "type": "typing.Optional[float]",
+          "required": false,
+          "default": null,
+          "description": "Stage duration in seconds"
+        },
+        "details": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Additional details"
+        },
+        "warnings": {
+          "type": "typing.Optional[typing.Dict[str, typing.Any]]",
+          "required": false,
+          "default": null,
+          "description": "Stage warnings"
+        }
+      },
+      "json_schema": {
+        "description": "Job progress response model.",
+        "properties": {
+          "id": {
+            "description": "Progress entry ID",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "description": "Associated job ID",
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "stage": {
+            "description": "Processing stage",
+            "title": "Stage",
+            "type": "string"
+          },
+          "progress_percentage": {
+            "description": "Stage progress percentage",
+            "title": "Progress Percentage",
+            "type": "number"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Progress message",
+            "title": "Message"
+          },
+          "timestamp": {
+            "description": "Progress timestamp",
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "stage_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Stage start time",
+            "title": "Stage Started At"
+          },
+          "stage_duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Stage duration in seconds",
+            "title": "Stage Duration"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Additional details",
+            "title": "Details"
+          },
+          "warnings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Stage warnings",
+            "title": "Warnings"
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "stage",
+          "progress_percentage",
+          "timestamp"
+        ],
+        "title": "JobProgressResponse",
+        "type": "object"
+      }
+    },
+    "ProcessingStatsResponse": {
+      "description": "Processing statistics response.",
+      "fields": {
+        "total_jobs": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Total number of jobs"
+        },
+        "jobs_by_status": {
+          "type": "typing.Dict[str, int]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job count by status"
+        },
+        "jobs_by_mode": {
+          "type": "typing.Dict[str, int]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Job count by processing mode"
+        },
+        "average_processing_time": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Average processing time in seconds"
+        },
+        "queue_length": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Current queue length"
+        },
+        "active_workers": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of active workers"
+        },
+        "jobs_completed_24h": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Jobs completed in last 24 hours"
+        },
+        "jobs_failed_24h": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Jobs failed in last 24 hours"
+        },
+        "average_wait_time": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Average queue wait time in seconds"
+        }
+      },
+      "json_schema": {
+        "description": "Processing statistics response.",
+        "properties": {
+          "total_jobs": {
+            "description": "Total number of jobs",
+            "title": "Total Jobs",
+            "type": "integer"
+          },
+          "jobs_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Job count by status",
+            "title": "Jobs By Status",
+            "type": "object"
+          },
+          "jobs_by_mode": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Job count by processing mode",
+            "title": "Jobs By Mode",
+            "type": "object"
+          },
+          "average_processing_time": {
+            "description": "Average processing time in seconds",
+            "title": "Average Processing Time",
+            "type": "number"
+          },
+          "queue_length": {
+            "description": "Current queue length",
+            "title": "Queue Length",
+            "type": "integer"
+          },
+          "active_workers": {
+            "description": "Number of active workers",
+            "title": "Active Workers",
+            "type": "integer"
+          },
+          "jobs_completed_24h": {
+            "description": "Jobs completed in last 24 hours",
+            "title": "Jobs Completed 24H",
+            "type": "integer"
+          },
+          "jobs_failed_24h": {
+            "description": "Jobs failed in last 24 hours",
+            "title": "Jobs Failed 24H",
+            "type": "integer"
+          },
+          "average_wait_time": {
+            "description": "Average queue wait time in seconds",
+            "title": "Average Wait Time",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_jobs",
+          "jobs_by_status",
+          "jobs_by_mode",
+          "average_processing_time",
+          "queue_length",
+          "active_workers",
+          "jobs_completed_24h",
+          "jobs_failed_24h",
+          "average_wait_time"
+        ],
+        "title": "ProcessingStatsResponse",
+        "type": "object"
+      }
+    },
+    "ProcessingModeInfo": {
+      "description": "Processing mode information.",
+      "fields": {
+        "mode": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Processing mode name"
+        },
+        "display_name": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Human-readable mode name"
+        },
+        "description": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Mode description"
+        },
+        "requires_reference": {
+          "type": "<class 'bool'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Whether mode requires reference file"
+        },
+        "estimated_duration": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Estimated processing duration in seconds"
+        },
+        "settings_schema": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "JSON schema for settings"
+        }
+      },
+      "json_schema": {
+        "description": "Processing mode information.",
+        "properties": {
+          "mode": {
+            "description": "Processing mode name",
+            "title": "Mode",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Human-readable mode name",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "description": {
+            "description": "Mode description",
+            "title": "Description",
+            "type": "string"
+          },
+          "requires_reference": {
+            "description": "Whether mode requires reference file",
+            "title": "Requires Reference",
+            "type": "boolean"
+          },
+          "estimated_duration": {
+            "description": "Estimated processing duration in seconds",
+            "title": "Estimated Duration",
+            "type": "number"
+          },
+          "settings_schema": {
+            "additionalProperties": true,
+            "description": "JSON schema for settings",
+            "title": "Settings Schema",
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode",
+          "display_name",
+          "description",
+          "requires_reference",
+          "estimated_duration",
+          "settings_schema"
+        ],
+        "title": "ProcessingModeInfo",
+        "type": "object"
+      }
+    },
+    "ProcessingModesResponse": {
+      "description": "Available processing modes response.",
+      "fields": {
+        "modes": {
+          "type": "typing.List[app.schemas.processing.ProcessingModeInfo]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Available processing modes"
+        },
+        "default_mode": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Default processing mode"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "ProcessingModeInfo": {
+            "description": "Processing mode information.",
+            "properties": {
+              "mode": {
+                "description": "Processing mode name",
+                "title": "Mode",
+                "type": "string"
+              },
+              "display_name": {
+                "description": "Human-readable mode name",
+                "title": "Display Name",
+                "type": "string"
+              },
+              "description": {
+                "description": "Mode description",
+                "title": "Description",
+                "type": "string"
+              },
+              "requires_reference": {
+                "description": "Whether mode requires reference file",
+                "title": "Requires Reference",
+                "type": "boolean"
+              },
+              "estimated_duration": {
+                "description": "Estimated processing duration in seconds",
+                "title": "Estimated Duration",
+                "type": "number"
+              },
+              "settings_schema": {
+                "additionalProperties": true,
+                "description": "JSON schema for settings",
+                "title": "Settings Schema",
+                "type": "object"
+              }
+            },
+            "required": [
+              "mode",
+              "display_name",
+              "description",
+              "requires_reference",
+              "estimated_duration",
+              "settings_schema"
+            ],
+            "title": "ProcessingModeInfo",
+            "type": "object"
+          }
+        },
+        "description": "Available processing modes response.",
+        "properties": {
+          "modes": {
+            "description": "Available processing modes",
+            "items": {
+              "$ref": "#/$defs/ProcessingModeInfo"
+            },
+            "title": "Modes",
+            "type": "array"
+          },
+          "default_mode": {
+            "description": "Default processing mode",
+            "title": "Default Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "modes",
+          "default_mode"
+        ],
+        "title": "ProcessingModesResponse",
+        "type": "object"
+      }
+    },
+    "QueueStatusResponse": {
+      "description": "Processing queue status response.",
+      "fields": {
+        "total_queued": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Total jobs in queue"
+        },
+        "by_queue": {
+          "type": "typing.Dict[str, int]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Jobs by queue name"
+        },
+        "by_priority": {
+          "type": "typing.Dict[str, int]",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Jobs by priority level"
+        },
+        "estimated_wait_time": {
+          "type": "<class 'float'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Estimated wait time in seconds"
+        },
+        "active_workers": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of active workers"
+        },
+        "worker_capacity": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Total worker capacity"
+        }
+      },
+      "json_schema": {
+        "description": "Processing queue status response.",
+        "properties": {
+          "total_queued": {
+            "description": "Total jobs in queue",
+            "title": "Total Queued",
+            "type": "integer"
+          },
+          "by_queue": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Jobs by queue name",
+            "title": "By Queue",
+            "type": "object"
+          },
+          "by_priority": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Jobs by priority level",
+            "title": "By Priority",
+            "type": "object"
+          },
+          "estimated_wait_time": {
+            "description": "Estimated wait time in seconds",
+            "title": "Estimated Wait Time",
+            "type": "number"
+          },
+          "active_workers": {
+            "description": "Number of active workers",
+            "title": "Active Workers",
+            "type": "integer"
+          },
+          "worker_capacity": {
+            "description": "Total worker capacity",
+            "title": "Worker Capacity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_queued",
+          "by_queue",
+          "by_priority",
+          "estimated_wait_time",
+          "active_workers",
+          "worker_capacity"
+        ],
+        "title": "QueueStatusResponse",
+        "type": "object"
+      }
     }
   },
   "enums": {
@@ -2461,6 +4267,70 @@
         "user_id (optional)"
       ],
       "response_schema": "SettingsUpdateResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/processing/jobs",
+      "description": "Create new processing job",
+      "request_schema": "ProcessingJobCreate",
+      "response_schema": "ProcessingJobResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/processing/jobs",
+      "description": "List processing jobs with pagination",
+      "query_params": [
+        "page (optional)",
+        "page_size (optional)",
+        "status (optional)",
+        "processing_mode (optional)"
+      ],
+      "response_schema": "ProcessingJobListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/processing/jobs/{job_id}",
+      "description": "Get detailed job information",
+      "path_params": [
+        "job_id (UUID)"
+      ],
+      "response_schema": "ProcessingJobDetailResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/processing/jobs/{job_id}/cancel",
+      "description": "Cancel a processing job",
+      "path_params": [
+        "job_id (UUID)"
+      ],
+      "response_schema": "ProcessingJobResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/processing/queue/status",
+      "description": "Get processing queue status",
+      "response_schema": "QueueStatusResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/processing/stats",
+      "description": "Get processing statistics",
+      "response_schema": "ProcessingStatsResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/processing/modes",
+      "description": "Get available processing modes",
+      "response_schema": "ProcessingModesResponse"
+    },
+    {
+      "method": "WebSocket",
+      "path": "/api/v1/processing/ws/{job_id}",
+      "description": "Real-time processing progress updates",
+      "path_params": [
+        "job_id (UUID)"
+      ],
+      "response_schema": "JobProgressResponse"
     }
   ]
 }

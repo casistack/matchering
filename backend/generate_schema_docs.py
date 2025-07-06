@@ -44,6 +44,17 @@ try:
         FallbackStrategy,
         ModelType
     )
+    from app.schemas.processing import (
+        ProcessingJobCreate,
+        ProcessingJobResponse,
+        ProcessingJobListResponse,
+        ProcessingJobDetailResponse,
+        JobProgressResponse,
+        ProcessingStatsResponse,
+        ProcessingModeInfo,
+        ProcessingModesResponse,
+        QueueStatusResponse
+    )
     from pydantic import BaseModel
     from pydantic.fields import FieldInfo
 except ImportError as e:
@@ -56,6 +67,7 @@ class SchemaDocumentationGenerator:
     
     def __init__(self):
         self.schemas = {
+            # Settings API schemas
             'ModelPreferencesSchema': ModelPreferencesSchema,
             'ModelPreferencesUpdateSchema': ModelPreferencesUpdateSchema,
             'UserSettingsProfileSchema': UserSettingsProfileSchema,
@@ -68,6 +80,17 @@ class SchemaDocumentationGenerator:
             'ProfileSelectionResponse': ProfileSelectionResponse,
             'UserSettingsAnalyticsSchema': UserSettingsAnalyticsSchema,
             'SystemStatusResponse': SystemStatusResponse,
+            
+            # Processing Jobs API schemas
+            'ProcessingJobCreate': ProcessingJobCreate,
+            'ProcessingJobResponse': ProcessingJobResponse,
+            'ProcessingJobListResponse': ProcessingJobListResponse,
+            'ProcessingJobDetailResponse': ProcessingJobDetailResponse,
+            'JobProgressResponse': JobProgressResponse,
+            'ProcessingStatsResponse': ProcessingStatsResponse,
+            'ProcessingModeInfo': ProcessingModeInfo,
+            'ProcessingModesResponse': ProcessingModesResponse,
+            'QueueStatusResponse': QueueStatusResponse,
         }
         
         self.enums = {
@@ -78,6 +101,7 @@ class SchemaDocumentationGenerator:
         }
         
         self.api_endpoints = [
+            # Settings API endpoints
             {
                 'method': 'GET',
                 'path': '/api/v1/settings/config',
@@ -161,6 +185,61 @@ class SchemaDocumentationGenerator:
                 'description': 'Reset to default preferences',
                 'query_params': ['anonymous_id (optional)', 'user_id (optional)'],
                 'response_schema': 'SettingsUpdateResponse'
+            },
+            
+            # Processing Jobs API endpoints
+            {
+                'method': 'POST',
+                'path': '/api/v1/processing/jobs',
+                'description': 'Create new processing job',
+                'request_schema': 'ProcessingJobCreate',
+                'response_schema': 'ProcessingJobResponse'
+            },
+            {
+                'method': 'GET',
+                'path': '/api/v1/processing/jobs',
+                'description': 'List processing jobs with pagination',
+                'query_params': ['page (optional)', 'page_size (optional)', 'status (optional)', 'processing_mode (optional)'],
+                'response_schema': 'ProcessingJobListResponse'
+            },
+            {
+                'method': 'GET',
+                'path': '/api/v1/processing/jobs/{job_id}',
+                'description': 'Get detailed job information',
+                'path_params': ['job_id (UUID)'],
+                'response_schema': 'ProcessingJobDetailResponse'
+            },
+            {
+                'method': 'POST',
+                'path': '/api/v1/processing/jobs/{job_id}/cancel',
+                'description': 'Cancel a processing job',
+                'path_params': ['job_id (UUID)'],
+                'response_schema': 'ProcessingJobResponse'
+            },
+            {
+                'method': 'GET',
+                'path': '/api/v1/processing/queue/status',
+                'description': 'Get processing queue status',
+                'response_schema': 'QueueStatusResponse'
+            },
+            {
+                'method': 'GET',
+                'path': '/api/v1/processing/stats',
+                'description': 'Get processing statistics',
+                'response_schema': 'ProcessingStatsResponse'
+            },
+            {
+                'method': 'GET',
+                'path': '/api/v1/processing/modes',
+                'description': 'Get available processing modes',
+                'response_schema': 'ProcessingModesResponse'
+            },
+            {
+                'method': 'WebSocket',
+                'path': '/api/v1/processing/ws/{job_id}',
+                'description': 'Real-time processing progress updates',
+                'path_params': ['job_id (UUID)'],
+                'response_schema': 'JobProgressResponse'
             }
         ]
 
@@ -196,7 +275,7 @@ class SchemaDocumentationGenerator:
         json_schema = {
             'generated_at': datetime.utcnow().isoformat(),
             'version': '1.0.0',
-            'description': 'Backend API Schemas for Matchering Settings',
+            'description': 'Backend API Schemas for Matchering Settings and Processing Jobs',
             'schemas': {},
             'enums': {},
             'api_endpoints': self.api_endpoints
@@ -235,6 +314,8 @@ This document provides comprehensive reference documentation for the Matchering 
 ## Table of Contents
 
 1. [API Endpoints](#api-endpoints)
+   - [Settings Management](#settings-management)
+   - [Processing Jobs Management](#processing-jobs-management)
 2. [Request/Response Schemas](#requestresponse-schemas)
 3. [Enumerations](#enumerations)
 4. [Validation Rules](#validation-rules)
@@ -247,7 +328,38 @@ This document provides comprehensive reference documentation for the Matchering 
 """
         
         # Generate API endpoint documentation
-        for endpoint in json_schema['api_endpoints']:
+        settings_endpoints = [ep for ep in json_schema['api_endpoints'] if ep['path'].startswith('/api/v1/settings')]
+        processing_endpoints = [ep for ep in json_schema['api_endpoints'] if ep['path'].startswith('/api/v1/processing')]
+        
+        # Settings endpoints
+        for endpoint in settings_endpoints:
+            md += f"#### {endpoint['method']} `{endpoint['path']}`\n\n"
+            md += f"**Description:** {endpoint['description']}\n\n"
+            
+            if endpoint.get('path_params'):
+                md += "**Path Parameters:**\n"
+                for param in endpoint['path_params']:
+                    md += f"- `{param}`\n"
+                md += "\n"
+            
+            if endpoint.get('query_params'):
+                md += "**Query Parameters:**\n"
+                for param in endpoint['query_params']:
+                    md += f"- `{param}`\n"
+                md += "\n"
+            
+            if endpoint.get('request_schema'):
+                md += f"**Request Schema:** [{endpoint['request_schema']}](#{endpoint['request_schema'].lower()})\n\n"
+            
+            if endpoint.get('response_schema'):
+                md += f"**Response Schema:** [{endpoint['response_schema']}](#{endpoint['response_schema'].lower().replace('[', '').replace(']', '').replace('<', '').replace('>', '')})\n\n"
+            
+            md += "---\n\n"
+
+        # Processing Jobs endpoints
+        md += "### Processing Jobs Management\n\n"
+        
+        for endpoint in processing_endpoints:
             md += f"#### {endpoint['method']} `{endpoint['path']}`\n\n"
             md += f"**Description:** {endpoint['description']}\n\n"
             
@@ -313,27 +425,52 @@ This document provides comprehensive reference documentation for the Matchering 
 
 ### Critical Validation Requirements
 
-#### Ensemble Weights
+#### Settings API Validation
+
+##### Ensemble Weights
 - **Must sum to approximately 1.0** (between 0.9 and 1.1)
 - **Example:** `{"huggingface_ensemble": 0.7, "ast_model": 0.25, "fallback_classifier": 0.05}`
 - **Total:** 0.7 + 0.25 + 0.05 = 1.0 ✅
 
-#### Confidence Threshold  
+##### Confidence Threshold  
 - **Range:** 0.5 ≤ value ≤ 0.95
 - **Example:** `0.6` ✅, `0.4` ❌, `0.98` ❌
 
-#### Max Processing Time
+##### Max Processing Time
 - **Range:** 1000 ≤ value ≤ 10000 (milliseconds)
 - **Example:** `5000` ✅, `500` ❌, `15000` ❌
 
-#### Model IDs (Current)
+##### Model IDs (Current)
 - **HuggingFace Ensemble:** `huggingface_ensemble`
 - **Audio Spectrogram Transformer:** `ast_model`  
 - **Fallback Classifier:** `fallback_classifier`
 
+#### Processing Jobs API Validation
+
+##### Required Fields (POST /api/v1/processing/jobs)
+- **input_file_id:** Required UUID - ID of the uploaded audio file
+- **processing_mode:** Required string - Must be one of: `"auto"`, `"reference"`, `"hybrid"`
+- **settings:** Optional Dict[str, Any] - Processing configuration settings
+
+##### Optional Fields
+- **reference_file_id:** Optional UUID - Required only for `"reference"` processing mode
+- **priority:** Optional integer - Range: 1-10 (1=highest, 10=lowest), default: 5
+
+##### Processing Mode Validation
+- **auto:** AI-based mastering (no reference file required)
+- **reference:** Reference-based mastering (reference_file_id required)
+- **hybrid:** Combination of AI and reference mastering
+
+##### UUID Format
+- **All file IDs must be valid UUIDs**
+- **Example:** `"ccb9b7e1-cb72-4598-9d45-cde2d33d61e9"` ✅
+- **Invalid:** `"invalid-uuid"` ❌
+
 ## Common Examples
 
-### Update Model Preferences
+### Settings API Examples
+
+#### Update Model Preferences
 
 ```json
 {
@@ -351,7 +488,7 @@ This document provides comprehensive reference documentation for the Matchering 
 }
 ```
 
-### Create New Profile
+#### Create New Profile
 
 ```json
 {
@@ -374,6 +511,56 @@ This document provides comprehensive reference documentation for the Matchering 
 }
 ```
 
+### Processing Jobs API Examples
+
+#### Create Processing Job (Auto Mode)
+
+```json
+{
+  "input_file_id": "ccb9b7e1-cb72-4598-9d45-cde2d33d61e9",
+  "processing_mode": "auto",
+  "settings": {
+    "intensity": "medium",
+    "eqStyle": "balanced",
+    "preserveDynamics": true,
+    "targetLoudness": -14.5
+  },
+  "priority": 5
+}
+```
+
+#### Create Processing Job (Reference Mode)
+
+```json
+{
+  "input_file_id": "ccb9b7e1-cb72-4598-9d45-cde2d33d61e9",
+  "reference_file_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "processing_mode": "reference",
+  "settings": {
+    "intensity": "high",
+    "preserveOriginalDynamics": false
+  },
+  "priority": 3
+}
+```
+
+#### Create Processing Job (Hybrid Mode)
+
+```json
+{
+  "input_file_id": "ccb9b7e1-cb72-4598-9d45-cde2d33d61e9",
+  "reference_file_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "processing_mode": "hybrid",
+  "settings": {
+    "aiWeight": 0.7,
+    "referenceWeight": 0.3,
+    "intensity": "medium",
+    "targetLoudness": -16.0
+  },
+  "priority": 4
+}
+```
+
 ### Error Response Format
 
 ```json
@@ -386,13 +573,51 @@ This document provides comprehensive reference documentation for the Matchering 
 
 ## Notes for Frontend Engineers
 
+### General Guidelines
+
 1. **Always validate data locally** before sending to backend
 2. **Use the exact enum values** listed in this document  
-3. **Ensure ensemble weights sum to ~1.0** before submission
-4. **Check value ranges** for numeric fields
-5. **Handle 422 validation errors** gracefully
-6. **Use anonymous_id** for unauthenticated users
-7. **All timestamps** are in ISO format (UTC)
+3. **Handle 422 validation errors** gracefully
+4. **Use anonymous_id** for unauthenticated users
+5. **All timestamps** are in ISO format (UTC)
+
+### Settings API Guidelines
+
+1. **Ensure ensemble weights sum to ~1.0** before submission
+2. **Check value ranges** for numeric fields
+3. **Use proper confidence threshold ranges** (0.5-0.95)
+
+### Processing Jobs API Guidelines
+
+1. **Use correct field names:**
+   - ✅ `input_file_id` (not `fileId`)
+   - ✅ `processing_mode` (not `mode`)
+   - ✅ `reference_file_id` (not `referenceFileId`)
+
+2. **Validate processing mode requirements:**
+   - `auto`: No reference file needed
+   - `reference`: Reference file required
+   - `hybrid`: Reference file required
+
+3. **Handle UUIDs properly:**
+   - Always use valid UUID format
+   - Validate UUIDs before sending requests
+
+4. **Common 422 validation errors:**
+   - Missing required fields (`input_file_id`, `processing_mode`)
+   - Invalid processing mode value
+   - Invalid UUID format
+   - Reference file missing for reference/hybrid modes
+
+### Field Name Mapping (Frontend ↔ Backend)
+
+| Frontend Field | Backend Field | Notes |
+|----------------|---------------|-------|
+| `fileId` | `input_file_id` | ❌ Use `input_file_id` |
+| `mode` | `processing_mode` | ❌ Use `processing_mode` |
+| `referenceFileId` | `reference_file_id` | ❌ Use `reference_file_id` |
+| `priority` | `priority` | ✅ Same field name |
+| `settings` | `settings` | ✅ Same field name |
 
 ---
 
@@ -408,20 +633,65 @@ This document provides comprehensive reference documentation for the Matchering 
 
 ## Quick Validation Checklist
 
-### ✅ Ensemble Weights
+### Settings API Validation
+
+#### ✅ Ensemble Weights
 ```typescript
 const total = Object.values(ensembleWeights).reduce((sum, weight) => sum + weight, 0);
 const isValid = total >= 0.9 && total <= 1.1;
 ```
 
-### ✅ Confidence Threshold
+#### ✅ Confidence Threshold
 ```typescript
 const isValid = threshold >= 0.5 && threshold <= 0.95;
 ```
 
-### ✅ Max Processing Time
+#### ✅ Max Processing Time
 ```typescript
 const isValid = time >= 1000 && time <= 10000; // milliseconds
+```
+
+### Processing Jobs API Validation
+
+#### ✅ Processing Job Create Request
+```typescript
+interface ProcessingJobCreateRequest {
+  input_file_id: string;        // Required: UUID of uploaded file
+  processing_mode: 'auto' | 'reference' | 'hybrid';  // Required
+  reference_file_id?: string;   // Optional: Required for reference/hybrid modes
+  settings?: Record<string, any>;  // Optional: Processing settings
+  priority?: number;            // Optional: 1-10 (1=highest, 10=lowest)
+}
+```
+
+#### ✅ Field Name Validation
+```typescript
+// ❌ INCORRECT (frontend style)
+const wrongRequest = {
+  fileId: "uuid-here",
+  mode: "auto"
+};
+
+// ✅ CORRECT (backend expected)
+const correctRequest = {
+  input_file_id: "uuid-here",
+  processing_mode: "auto"
+};
+```
+
+#### ✅ UUID Validation
+```typescript
+const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+```
+
+#### ✅ Processing Mode Validation
+```typescript
+const isValidProcessingMode = (mode: string): boolean => {
+  return ['auto', 'reference', 'hybrid'].includes(mode);
+};
 ```
 
 ### ✅ Valid Enum Values
@@ -449,20 +719,28 @@ const isValid = time >= 1000 && time <= 10000; // milliseconds
 
 ### ❌ Common Validation Errors
 
-**422 Unprocessable Entity:**
+**422 Unprocessable Entity (Settings API):**
 - Ensemble weights don't sum to ~1.0
 - Confidence threshold out of range (0.5-0.95)
 - Processing time out of range (1000-10000ms)
 - Invalid enum value
 - Missing required fields
 
+**422 Unprocessable Entity (Processing Jobs API):**
+- Missing required fields (`input_file_id`, `processing_mode`)
+- Invalid processing mode (must be: auto, reference, hybrid)
+- Invalid UUID format for file IDs
+- Reference file missing for reference/hybrid modes
+- Priority out of range (1-10)
+
 **400 Bad Request:**
 - Missing anonymous_id or user_id
 - Invalid UUID format for profile_id
 - Malformed JSON payload
 
-### 🔧 Frontend Validation Helper
+### 🔧 Frontend Validation Helpers
 
+#### Settings API Validation
 ```typescript
 export const validatePreferences = (prefs: Partial<ModelPreferences>): string[] => {
   const errors: string[] = [];
@@ -487,6 +765,49 @@ export const validatePreferences = (prefs: Partial<ModelPreferences>): string[] 
   }
   
   return errors;
+};
+```
+
+#### Processing Jobs API Validation
+```typescript
+export const validateProcessingJobCreate = (job: any): string[] => {
+  const errors: string[] = [];
+  
+  // Required fields
+  if (!job.input_file_id) {
+    errors.push('input_file_id is required');
+  } else if (!isValidUUID(job.input_file_id)) {
+    errors.push('input_file_id must be a valid UUID');
+  }
+  
+  if (!job.processing_mode) {
+    errors.push('processing_mode is required');
+  } else if (!['auto', 'reference', 'hybrid'].includes(job.processing_mode)) {
+    errors.push('processing_mode must be one of: auto, reference, hybrid');
+  }
+  
+  // Reference file validation
+  if (['reference', 'hybrid'].includes(job.processing_mode)) {
+    if (!job.reference_file_id) {
+      errors.push(`reference_file_id is required for ${job.processing_mode} mode`);
+    } else if (!isValidUUID(job.reference_file_id)) {
+      errors.push('reference_file_id must be a valid UUID');
+    }
+  }
+  
+  // Priority validation
+  if (job.priority !== undefined) {
+    if (job.priority < 1 || job.priority > 10) {
+      errors.push('priority must be between 1 and 10');
+    }
+  }
+  
+  return errors;
+};
+
+const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 };
 ```
 """
