@@ -192,6 +192,33 @@ class ProfileSelectionResponse(BaseModel):
     message: str = Field(default="Profile selected successfully")
 
 
+class CeleryWorkerStatusSchema(BaseModel):
+    """Celery worker status information."""
+    worker_id: str = Field(..., description="Unique worker identifier")
+    hostname: str = Field(..., description="Worker hostname")
+    status: Literal["online", "offline", "unknown"] = Field(..., description="Worker status")
+    active_tasks: int = Field(ge=0, description="Number of currently active tasks")
+    processed_tasks: int = Field(ge=0, description="Total number of processed tasks")
+    load_average: List[float] = Field(default=[], description="System load average [1min, 5min, 15min]")
+    memory_usage: Dict[str, Any] = Field(default={}, description="Memory usage statistics")
+    queues: List[str] = Field(default=[], description="Queues this worker is listening to")
+    last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
+
+
+class CeleryStatusSchema(BaseModel):
+    """Overall Celery system status."""
+    total_workers: int = Field(ge=0, description="Total number of workers")
+    active_workers: int = Field(ge=0, description="Number of active workers")
+    offline_workers: int = Field(ge=0, description="Number of offline workers")
+    pending_tasks: int = Field(ge=0, description="Number of pending tasks in all queues")
+    active_tasks: int = Field(ge=0, description="Number of currently executing tasks")
+    failed_tasks_recent: int = Field(ge=0, description="Number of failed tasks in last hour")
+    queue_lengths: Dict[str, int] = Field(default={}, description="Length of each queue")
+    workers: List[CeleryWorkerStatusSchema] = Field(default=[], description="Individual worker statuses")
+    broker_status: Literal["connected", "disconnected", "unknown"] = Field(..., description="Redis broker connection status")
+    last_updated: datetime = Field(..., description="When this status was last updated")
+
+
 class SystemStatusResponse(BaseModel):
     """System status for settings service."""
     available_models_count: int
@@ -199,4 +226,5 @@ class SystemStatusResponse(BaseModel):
     cache_hit_rate: float = Field(ge=0.0, le=1.0)
     average_response_time: float = Field(ge=0.0)
     feature_flags: Dict[str, bool]
+    celery_status: CeleryStatusSchema = Field(..., description="Celery worker and task queue status")
     last_updated: datetime

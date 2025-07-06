@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-07-06T11:59:05.139445",
+  "generated_at": "2025-07-06T13:34:49.108192",
   "version": "1.0.0",
   "description": "Backend API Schemas for Matchering Settings and Processing Jobs",
   "schemas": {
@@ -2254,6 +2254,12 @@
           "default": "PydanticUndefined",
           "description": ""
         },
+        "celery_status": {
+          "type": "<class 'app.schemas.settings.CeleryStatusSchema'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Celery worker and task queue status"
+        },
         "last_updated": {
           "type": "<class 'datetime.datetime'>",
           "required": true,
@@ -2262,6 +2268,180 @@
         }
       },
       "json_schema": {
+        "$defs": {
+          "CeleryStatusSchema": {
+            "description": "Overall Celery system status.",
+            "properties": {
+              "total_workers": {
+                "description": "Total number of workers",
+                "minimum": 0,
+                "title": "Total Workers",
+                "type": "integer"
+              },
+              "active_workers": {
+                "description": "Number of active workers",
+                "minimum": 0,
+                "title": "Active Workers",
+                "type": "integer"
+              },
+              "offline_workers": {
+                "description": "Number of offline workers",
+                "minimum": 0,
+                "title": "Offline Workers",
+                "type": "integer"
+              },
+              "pending_tasks": {
+                "description": "Number of pending tasks in all queues",
+                "minimum": 0,
+                "title": "Pending Tasks",
+                "type": "integer"
+              },
+              "active_tasks": {
+                "description": "Number of currently executing tasks",
+                "minimum": 0,
+                "title": "Active Tasks",
+                "type": "integer"
+              },
+              "failed_tasks_recent": {
+                "description": "Number of failed tasks in last hour",
+                "minimum": 0,
+                "title": "Failed Tasks Recent",
+                "type": "integer"
+              },
+              "queue_lengths": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "default": {},
+                "description": "Length of each queue",
+                "title": "Queue Lengths",
+                "type": "object"
+              },
+              "workers": {
+                "default": [],
+                "description": "Individual worker statuses",
+                "items": {
+                  "$ref": "#/$defs/CeleryWorkerStatusSchema"
+                },
+                "title": "Workers",
+                "type": "array"
+              },
+              "broker_status": {
+                "description": "Redis broker connection status",
+                "enum": [
+                  "connected",
+                  "disconnected",
+                  "unknown"
+                ],
+                "title": "Broker Status",
+                "type": "string"
+              },
+              "last_updated": {
+                "description": "When this status was last updated",
+                "format": "date-time",
+                "title": "Last Updated",
+                "type": "string"
+              }
+            },
+            "required": [
+              "total_workers",
+              "active_workers",
+              "offline_workers",
+              "pending_tasks",
+              "active_tasks",
+              "failed_tasks_recent",
+              "broker_status",
+              "last_updated"
+            ],
+            "title": "CeleryStatusSchema",
+            "type": "object"
+          },
+          "CeleryWorkerStatusSchema": {
+            "description": "Celery worker status information.",
+            "properties": {
+              "worker_id": {
+                "description": "Unique worker identifier",
+                "title": "Worker Id",
+                "type": "string"
+              },
+              "hostname": {
+                "description": "Worker hostname",
+                "title": "Hostname",
+                "type": "string"
+              },
+              "status": {
+                "description": "Worker status",
+                "enum": [
+                  "online",
+                  "offline",
+                  "unknown"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "active_tasks": {
+                "description": "Number of currently active tasks",
+                "minimum": 0,
+                "title": "Active Tasks",
+                "type": "integer"
+              },
+              "processed_tasks": {
+                "description": "Total number of processed tasks",
+                "minimum": 0,
+                "title": "Processed Tasks",
+                "type": "integer"
+              },
+              "load_average": {
+                "default": [],
+                "description": "System load average [1min, 5min, 15min]",
+                "items": {
+                  "type": "number"
+                },
+                "title": "Load Average",
+                "type": "array"
+              },
+              "memory_usage": {
+                "additionalProperties": true,
+                "default": {},
+                "description": "Memory usage statistics",
+                "title": "Memory Usage",
+                "type": "object"
+              },
+              "queues": {
+                "default": [],
+                "description": "Queues this worker is listening to",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Queues",
+                "type": "array"
+              },
+              "last_heartbeat": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Last heartbeat timestamp",
+                "title": "Last Heartbeat"
+              }
+            },
+            "required": [
+              "worker_id",
+              "hostname",
+              "status",
+              "active_tasks",
+              "processed_tasks"
+            ],
+            "title": "CeleryWorkerStatusSchema",
+            "type": "object"
+          }
+        },
         "description": "System status for settings service.",
         "properties": {
           "available_models_count": {
@@ -2290,6 +2470,10 @@
             "title": "Feature Flags",
             "type": "object"
           },
+          "celery_status": {
+            "$ref": "#/$defs/CeleryStatusSchema",
+            "description": "Celery worker and task queue status"
+          },
           "last_updated": {
             "format": "date-time",
             "title": "Last Updated",
@@ -2302,6 +2486,7 @@
           "cache_hit_rate",
           "average_response_time",
           "feature_flags",
+          "celery_status",
           "last_updated"
         ],
         "title": "SystemStatusResponse",
@@ -4111,6 +4296,389 @@
           "worker_capacity"
         ],
         "title": "QueueStatusResponse",
+        "type": "object"
+      }
+    },
+    "CeleryWorkerStatusSchema": {
+      "description": "Celery worker status information.",
+      "fields": {
+        "worker_id": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Unique worker identifier"
+        },
+        "hostname": {
+          "type": "<class 'str'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Worker hostname"
+        },
+        "status": {
+          "type": "typing.Literal['online', 'offline', 'unknown']",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Worker status"
+        },
+        "active_tasks": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of currently active tasks"
+        },
+        "processed_tasks": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Total number of processed tasks"
+        },
+        "load_average": {
+          "type": "typing.List[float]",
+          "required": false,
+          "default": [],
+          "description": "System load average [1min, 5min, 15min]"
+        },
+        "memory_usage": {
+          "type": "typing.Dict[str, typing.Any]",
+          "required": false,
+          "default": {},
+          "description": "Memory usage statistics"
+        },
+        "queues": {
+          "type": "typing.List[str]",
+          "required": false,
+          "default": [],
+          "description": "Queues this worker is listening to"
+        },
+        "last_heartbeat": {
+          "type": "typing.Optional[datetime.datetime]",
+          "required": false,
+          "default": null,
+          "description": "Last heartbeat timestamp"
+        }
+      },
+      "json_schema": {
+        "description": "Celery worker status information.",
+        "properties": {
+          "worker_id": {
+            "description": "Unique worker identifier",
+            "title": "Worker Id",
+            "type": "string"
+          },
+          "hostname": {
+            "description": "Worker hostname",
+            "title": "Hostname",
+            "type": "string"
+          },
+          "status": {
+            "description": "Worker status",
+            "enum": [
+              "online",
+              "offline",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "active_tasks": {
+            "description": "Number of currently active tasks",
+            "minimum": 0,
+            "title": "Active Tasks",
+            "type": "integer"
+          },
+          "processed_tasks": {
+            "description": "Total number of processed tasks",
+            "minimum": 0,
+            "title": "Processed Tasks",
+            "type": "integer"
+          },
+          "load_average": {
+            "default": [],
+            "description": "System load average [1min, 5min, 15min]",
+            "items": {
+              "type": "number"
+            },
+            "title": "Load Average",
+            "type": "array"
+          },
+          "memory_usage": {
+            "additionalProperties": true,
+            "default": {},
+            "description": "Memory usage statistics",
+            "title": "Memory Usage",
+            "type": "object"
+          },
+          "queues": {
+            "default": [],
+            "description": "Queues this worker is listening to",
+            "items": {
+              "type": "string"
+            },
+            "title": "Queues",
+            "type": "array"
+          },
+          "last_heartbeat": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Last heartbeat timestamp",
+            "title": "Last Heartbeat"
+          }
+        },
+        "required": [
+          "worker_id",
+          "hostname",
+          "status",
+          "active_tasks",
+          "processed_tasks"
+        ],
+        "title": "CeleryWorkerStatusSchema",
+        "type": "object"
+      }
+    },
+    "CeleryStatusSchema": {
+      "description": "Overall Celery system status.",
+      "fields": {
+        "total_workers": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Total number of workers"
+        },
+        "active_workers": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of active workers"
+        },
+        "offline_workers": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of offline workers"
+        },
+        "pending_tasks": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of pending tasks in all queues"
+        },
+        "active_tasks": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of currently executing tasks"
+        },
+        "failed_tasks_recent": {
+          "type": "<class 'int'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Number of failed tasks in last hour"
+        },
+        "queue_lengths": {
+          "type": "typing.Dict[str, int]",
+          "required": false,
+          "default": {},
+          "description": "Length of each queue"
+        },
+        "workers": {
+          "type": "typing.List[app.schemas.settings.CeleryWorkerStatusSchema]",
+          "required": false,
+          "default": [],
+          "description": "Individual worker statuses"
+        },
+        "broker_status": {
+          "type": "typing.Literal['connected', 'disconnected', 'unknown']",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "Redis broker connection status"
+        },
+        "last_updated": {
+          "type": "<class 'datetime.datetime'>",
+          "required": true,
+          "default": "PydanticUndefined",
+          "description": "When this status was last updated"
+        }
+      },
+      "json_schema": {
+        "$defs": {
+          "CeleryWorkerStatusSchema": {
+            "description": "Celery worker status information.",
+            "properties": {
+              "worker_id": {
+                "description": "Unique worker identifier",
+                "title": "Worker Id",
+                "type": "string"
+              },
+              "hostname": {
+                "description": "Worker hostname",
+                "title": "Hostname",
+                "type": "string"
+              },
+              "status": {
+                "description": "Worker status",
+                "enum": [
+                  "online",
+                  "offline",
+                  "unknown"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "active_tasks": {
+                "description": "Number of currently active tasks",
+                "minimum": 0,
+                "title": "Active Tasks",
+                "type": "integer"
+              },
+              "processed_tasks": {
+                "description": "Total number of processed tasks",
+                "minimum": 0,
+                "title": "Processed Tasks",
+                "type": "integer"
+              },
+              "load_average": {
+                "default": [],
+                "description": "System load average [1min, 5min, 15min]",
+                "items": {
+                  "type": "number"
+                },
+                "title": "Load Average",
+                "type": "array"
+              },
+              "memory_usage": {
+                "additionalProperties": true,
+                "default": {},
+                "description": "Memory usage statistics",
+                "title": "Memory Usage",
+                "type": "object"
+              },
+              "queues": {
+                "default": [],
+                "description": "Queues this worker is listening to",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Queues",
+                "type": "array"
+              },
+              "last_heartbeat": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Last heartbeat timestamp",
+                "title": "Last Heartbeat"
+              }
+            },
+            "required": [
+              "worker_id",
+              "hostname",
+              "status",
+              "active_tasks",
+              "processed_tasks"
+            ],
+            "title": "CeleryWorkerStatusSchema",
+            "type": "object"
+          }
+        },
+        "description": "Overall Celery system status.",
+        "properties": {
+          "total_workers": {
+            "description": "Total number of workers",
+            "minimum": 0,
+            "title": "Total Workers",
+            "type": "integer"
+          },
+          "active_workers": {
+            "description": "Number of active workers",
+            "minimum": 0,
+            "title": "Active Workers",
+            "type": "integer"
+          },
+          "offline_workers": {
+            "description": "Number of offline workers",
+            "minimum": 0,
+            "title": "Offline Workers",
+            "type": "integer"
+          },
+          "pending_tasks": {
+            "description": "Number of pending tasks in all queues",
+            "minimum": 0,
+            "title": "Pending Tasks",
+            "type": "integer"
+          },
+          "active_tasks": {
+            "description": "Number of currently executing tasks",
+            "minimum": 0,
+            "title": "Active Tasks",
+            "type": "integer"
+          },
+          "failed_tasks_recent": {
+            "description": "Number of failed tasks in last hour",
+            "minimum": 0,
+            "title": "Failed Tasks Recent",
+            "type": "integer"
+          },
+          "queue_lengths": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "description": "Length of each queue",
+            "title": "Queue Lengths",
+            "type": "object"
+          },
+          "workers": {
+            "default": [],
+            "description": "Individual worker statuses",
+            "items": {
+              "$ref": "#/$defs/CeleryWorkerStatusSchema"
+            },
+            "title": "Workers",
+            "type": "array"
+          },
+          "broker_status": {
+            "description": "Redis broker connection status",
+            "enum": [
+              "connected",
+              "disconnected",
+              "unknown"
+            ],
+            "title": "Broker Status",
+            "type": "string"
+          },
+          "last_updated": {
+            "description": "When this status was last updated",
+            "format": "date-time",
+            "title": "Last Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_workers",
+          "active_workers",
+          "offline_workers",
+          "pending_tasks",
+          "active_tasks",
+          "failed_tasks_recent",
+          "broker_status",
+          "last_updated"
+        ],
+        "title": "CeleryStatusSchema",
         "type": "object"
       }
     }

@@ -160,7 +160,9 @@ const SystemPerformance: React.FC<SystemPerformanceProps> = ({ systemStatus }) =
           <Grid size={6}>
             <Box textAlign="center" p={2} bgcolor="background.paper" borderRadius={2}>
               <QueueIcon sx={{ fontSize: 32, color: 'primary.main', mb: 1 }} />
-              <Typography variant="h6">0</Typography>
+              <Typography variant="h6">
+                {systemStatus.celery_status?.pending_tasks ?? 0}
+              </Typography>
               <Typography variant="caption" color="text.secondary">
                 Queue Length
               </Typography>
@@ -187,41 +189,78 @@ const SystemPerformance: React.FC<SystemPerformanceProps> = ({ systemStatus }) =
 /**
  * System Info Component
  */
-const SystemInfo: React.FC = () => (
-  <Card>
-    <CardContent>
-      <Typography variant="h6" gutterBottom>
-        System Information
-      </Typography>
-      
-      <List dense>
-        <StatusIndicator
-          status="healthy"
-          label="API Server"
-          details="Responding normally"
-        />
-        <Divider />
-        <StatusIndicator
-          status="healthy"
-          label="Database Connection"
-          details="Connected and operational"
-        />
-        <Divider />
-        <StatusIndicator
-          status="healthy"
-          label="Cache System"
-          details="Redis cache operational"
-        />
-        <Divider />
-        <StatusIndicator
-          status="healthy"
-          label="File Storage"
-          details="Storage system healthy"
-        />
-      </List>
-    </CardContent>
-  </Card>
-);
+interface SystemInfoProps {
+  systemStatus: SystemStatus | null;
+}
+
+const SystemInfo: React.FC<SystemInfoProps> = ({ systemStatus }) => {
+  const getCeleryStatus = () => {
+    if (!systemStatus?.celery_status) return 'error';
+    
+    const { broker_status, active_workers, total_workers } = systemStatus.celery_status;
+    
+    if (broker_status === 'disconnected') return 'error';
+    if (broker_status === 'unknown' || total_workers === 0) return 'warning';
+    if (active_workers > 0) return 'healthy';
+    
+    return 'warning';
+  };
+
+  const getCeleryDetails = () => {
+    if (!systemStatus?.celery_status) return 'Status unavailable';
+    
+    const { broker_status, active_workers, total_workers, pending_tasks } = systemStatus.celery_status;
+    
+    if (broker_status === 'disconnected') return 'Broker disconnected';
+    if (total_workers === 0) return 'No workers available';
+    if (active_workers === 0) return 'Workers offline';
+    
+    const taskText = pending_tasks > 0 ? `, ${pending_tasks} pending` : '';
+    return `${active_workers}/${total_workers} workers active${taskText}`;
+  };
+
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          System Information
+        </Typography>
+        
+        <List dense>
+          <StatusIndicator
+            status="healthy"
+            label="API Server"
+            details="Responding normally"
+          />
+          <Divider />
+          <StatusIndicator
+            status="healthy"
+            label="Database Connection"
+            details="Connected and operational"
+          />
+          <Divider />
+          <StatusIndicator
+            status="healthy"
+            label="Cache System"
+            details="Redis cache operational"
+          />
+          <Divider />
+          <StatusIndicator
+            status={getCeleryStatus()}
+            label="Task Workers"
+            details={getCeleryDetails()}
+          />
+          <Divider />
+          <StatusIndicator
+            status="healthy"
+            label="File Storage"
+            details="Storage system healthy"
+          />
+        </List>
+      </CardContent>
+    </Card>
+  );
+};
 
 /**
  * System Status Panel Props
@@ -276,6 +315,18 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
     cache_hit_rate: 0.95,
     average_response_time: 120.0,
     feature_flags: {},
+    celery_status: {
+      total_workers: 0,
+      active_workers: 0,
+      offline_workers: 0,
+      pending_tasks: 0,
+      active_tasks: 0,
+      failed_tasks_recent: 0,
+      queue_lengths: {},
+      workers: [],
+      broker_status: 'unknown',
+      last_updated: new Date().toISOString()
+    },
     last_updated: new Date().toISOString()
   };
 
@@ -341,7 +392,7 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
 
         {/* System Information */}
         <Grid size={12}>
-          <SystemInfo />
+          <SystemInfo systemStatus={systemStatus} />
         </Grid>
       </Grid>
 
@@ -377,8 +428,8 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
             
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Box textAlign="center" p={2}>
-                <Typography variant="h6" color="warning.main">
-                  0
+                <Typography variant="h6" color={status.celery_status?.pending_tasks ? "warning.main" : "success.main"}>
+                  {status.celery_status?.pending_tasks ?? 0}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Processing Queue
@@ -393,6 +444,57 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Avg Response Time
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+          
+          {/* Celery Worker Status Section */}
+          <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>
+            Task Processing System
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Box textAlign="center" p={2}>
+                <Typography variant="h6" color={status.celery_status?.active_workers ? "success.main" : "warning.main"}>
+                  {status.celery_status?.active_workers ?? 0}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Active Workers
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Box textAlign="center" p={2}>
+                <Typography variant="h6" color="info.main">
+                  {status.celery_status?.total_workers ?? 0}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Total Workers
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Box textAlign="center" p={2}>
+                <Typography variant="h6" color={status.celery_status?.broker_status === 'connected' ? "success.main" : "error.main"}>
+                  {status.celery_status?.broker_status?.toUpperCase() ?? 'UNKNOWN'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Broker Status
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Box textAlign="center" p={2}>
+                <Typography variant="h6" color={status.celery_status?.failed_tasks_recent ? "error.main" : "success.main"}>
+                  {status.celery_status?.failed_tasks_recent ?? 0}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Recent Failures
                 </Typography>
               </Box>
             </Grid>

@@ -39,6 +39,8 @@ try:
         ProfileSelectionResponse,
         UserSettingsAnalyticsSchema,
         SystemStatusResponse,
+        CeleryWorkerStatusSchema,
+        CeleryStatusSchema,
         ModelSelectionStrategy,
         QualityPreference,
         FallbackStrategy,
@@ -91,6 +93,10 @@ class SchemaDocumentationGenerator:
             'ProcessingModeInfo': ProcessingModeInfo,
             'ProcessingModesResponse': ProcessingModesResponse,
             'QueueStatusResponse': QueueStatusResponse,
+            
+            # Celery Monitoring schemas
+            'CeleryWorkerStatusSchema': CeleryWorkerStatusSchema,
+            'CeleryStatusSchema': CeleryStatusSchema,
         }
         
         self.enums = {

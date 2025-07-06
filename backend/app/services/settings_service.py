@@ -19,6 +19,7 @@ from app.schemas.settings import (
     SettingsConfigResponse, ModelPreferencesUpdateSchema, UserSettingsProfileCreateSchema,
     UserSettingsProfileUpdateSchema, SettingsUpdateResponse, ProfileSelectionResponse,
     UserSettingsAnalyticsSchema, ModelPerformanceInfoSchema, SystemStatusResponse,
+    CeleryStatusSchema, CeleryWorkerStatusSchema,
     ModelSelectionStrategy, QualityPreference, FallbackStrategy, ModelType
 )
 
@@ -404,12 +405,18 @@ class SettingsService:
         result = await self.db.execute(stmt)
         active_users = result.scalar() or 0
         
+        # Get Celery worker status
+        from app.services.celery_monitoring_service import CeleryMonitoringService
+        celery_monitor = CeleryMonitoringService()
+        celery_status = await celery_monitor.get_celery_status()
+        
         return SystemStatusResponse(
             available_models_count=len(available_models),
             active_users_count=active_users,
             cache_hit_rate=0.95,  # TODO: Implement actual cache metrics
             average_response_time=120.0,  # TODO: Implement actual metrics
             feature_flags=await self._get_feature_flags(),
+            celery_status=celery_status,
             last_updated=datetime.utcnow()
         )
     

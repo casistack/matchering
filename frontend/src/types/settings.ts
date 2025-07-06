@@ -11,6 +11,35 @@ export type FallbackStrategy = 'strict' | 'graceful' | 'aggressive';
 export type ModelType = 'huggingface' | 'ast' | 'custom';
 export type ModelName = 'huggingface' | 'ast' | 'distilhubert' | 'wav2vec2' | 'custom_cnn' | 'ensemble';
 
+// Celery monitoring types
+export type WorkerStatus = 'online' | 'offline' | 'unknown';
+export type BrokerStatus = 'connected' | 'disconnected' | 'unknown';
+
+export interface CeleryWorkerStatus {
+  readonly worker_id: string;
+  readonly hostname: string;
+  readonly status: WorkerStatus;
+  readonly active_tasks: number;
+  readonly processed_tasks: number;
+  readonly load_average: number[];
+  readonly memory_usage: Record<string, unknown>;
+  readonly queues: string[];
+  readonly last_heartbeat: string | null;
+}
+
+export interface CeleryStatus {
+  readonly total_workers: number;
+  readonly active_workers: number;
+  readonly offline_workers: number;
+  readonly pending_tasks: number;
+  readonly active_tasks: number;
+  readonly failed_tasks_recent: number;
+  readonly queue_lengths: Record<string, number>;
+  readonly workers: CeleryWorkerStatus[];
+  readonly broker_status: BrokerStatus;
+  readonly last_updated: string;
+}
+
 // Backend model performance schema
 export interface ModelPerformanceInfo {
   readonly average_processing_time: number;
@@ -95,6 +124,7 @@ export interface SystemStatus {
   readonly cache_hit_rate: number;
   readonly average_response_time: number;
   readonly feature_flags: Record<string, boolean>;
+  readonly celery_status: CeleryStatus;
   readonly last_updated: string;
 }
 
