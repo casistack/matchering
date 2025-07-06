@@ -302,6 +302,15 @@ async def create_processing_job(
     except ValidationError as e:
         logger.warning(f"Job creation validation failed: {e.message}")
         
+        # Create error details dictionary from exception attributes
+        error_details = {
+            "error_code": e.error_code,
+            "message": e.message,
+            "details": e.details,
+            "timestamp": e.timestamp,
+            "error_id": e.error_id
+        }
+        
         # Log validation error to enterprise system
         log_error(
             "Processing job creation validation failed",
@@ -313,11 +322,11 @@ async def create_processing_job(
                 "client_ip": client_ip,
                 "request_id": request_id,
                 "job_data": job_data.model_dump(),
-                "error_details": e.to_dict()
+                "error_details": error_details
             }
         )
         
-        raise HTTPException(status_code=422, detail=e.to_dict())  # Use 422 for validation errors
+        raise HTTPException(status_code=422, detail=error_details)  # Use 422 for validation errors
     
     except Exception as e:
         logger.error(f"Job creation failed: {str(e)}")
