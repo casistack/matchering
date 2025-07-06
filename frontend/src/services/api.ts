@@ -276,7 +276,7 @@ export const processingAPI = {
    */
   async createJob(request: ProcessingJobRequest): Promise<APIResponse<ProcessingJobResponse>> {
     // Route based on processing mode
-    if (request.mode === 'hybrid') {
+    if (request.processing_mode === 'hybrid') {
       // Use hybrid AI endpoint for hybrid mode
       const formData = new FormData();
       

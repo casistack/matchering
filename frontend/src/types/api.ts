@@ -24,10 +24,11 @@ export interface FileUploadResponse {
 }
 
 export interface ProcessingJobRequest {
-  readonly fileId: string;
-  readonly mode: ProcessingMode;
+  readonly input_file_id: string;
+  readonly processing_mode: ProcessingMode;
   readonly settings: ProcessingSettings;
-  readonly referenceFileId?: string; // For reference mode
+  readonly reference_file_id?: string; // For reference mode
+  readonly priority?: number; // Optional priority (1-10, 1=highest, 10=lowest)
 }
 
 export interface ProcessingJobResponse {

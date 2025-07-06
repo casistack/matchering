@@ -15,5 +15,7 @@ export type {
   QualityLevel,
   TimeConstraint,
   ProcessingSettings,
-  AdvancedModeOptions
+  AdvancedModeOptions,
+  JobStatus,
+  ProcessingProgress
 } from './processing';

@@ -12,7 +12,9 @@ import type {
   ProcessingMode, 
   ProcessingSettings,
   ProcessingJobRequest,
-  ProcessingJobResponse 
+  ProcessingJobResponse,
+  APIResponse,
+  JobStatus
 } from '@/types';
 import type { JobCompletedPayload } from '@/services/websocket';
 
@@ -165,62 +167,84 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
       setState(initialState);
       setState(prev => ({ ...prev, status: 'creating' }));
 
-      // Handle different processing modes
-      let response: any;
+      // Handle different processing modes - define comprehensive response types
+      // These capture ALL possible backend return fields without breaking type safety
+      interface HybridResponse {
+        success: boolean;
+        job_id: string;
+        processing_mode: string;
+        model_used: string;
+        estimated_completion_time: number;
+        // These can contain ANY backend data structure - preserving original capability
+        audio_characteristics: unknown;
+        predicted_parameters: unknown;
+        processing_metadata: unknown;
+        // Allow for additional fields the backend might return
+        [key: string]: unknown;
+      }
       
+      // Handle different processing modes with separate type-safe branches
+      let jobId: string;
+      let queuePosition = 1;
+      let estimatedCompletion: string | null = null;
+
       if (mode === 'hybrid' && fileIdOrFile instanceof File) {
         // Use hybrid AI API for hybrid mode
         const hybridOptions = {
           modelPreference: 'auto',
           processingMode: mode,
           intensityLevel: settings.intensity,
-          eqStyle: settings.eqStyle,  // Add the missing eq_style field
+          eqStyle: settings.eqStyle,
           preserveDynamics: settings.preserveDynamics,
           targetLoudnessLufs: settings.targetLoudness,
           referenceFileId,
         };
         
         console.log('[ProcessingJob] Starting hybrid AI processing with options:', hybridOptions);
-        response = await hybridAI.processHybrid(fileIdOrFile, hybridOptions);
-        console.log('[ProcessingJob] Hybrid AI response:', response);
+        const hybridResponse: APIResponse<HybridResponse> = await hybridAI.processHybrid(fileIdOrFile, hybridOptions);
+        console.log('[ProcessingJob] Hybrid AI response:', hybridResponse);
+
+        if (!hybridResponse.success || !hybridResponse.data) {
+          const errorMsg = hybridResponse.error || 'Failed to create hybrid processing job';
+          console.error('[ProcessingJob] Hybrid job creation failed:', errorMsg);
+          throw new Error(errorMsg);
+        }
+
+        // Extract hybrid response data with proper typing
+        jobId = hybridResponse.data.job_id;
+        estimatedCompletion = `${Math.round(hybridResponse.data.estimated_completion_time)} seconds`;
+
       } else {
         // Use regular processing API for auto and reference modes
         const fileId = typeof fileIdOrFile === 'string' ? fileIdOrFile : '';
         const jobRequest: ProcessingJobRequest = {
-          fileId,
-          mode,
+          input_file_id: fileId,
+          processing_mode: mode,
           settings,
-          referenceFileId,
+          reference_file_id: referenceFileId,
         };
 
-        response = await processingAPI.createJob(jobRequest);
+        const regularResponse: APIResponse<ProcessingJobResponse> = await processingAPI.createJob(jobRequest);
+        
+        if (!regularResponse.success || !regularResponse.data) {
+          const errorMsg = regularResponse.error || 'Failed to create processing job';
+          console.error('[ProcessingJob] Job creation failed:', errorMsg);
+          throw new Error(errorMsg);
+        }
+
+        // Extract regular response data with proper typing
+        jobId = regularResponse.data.jobId;
+        queuePosition = regularResponse.data.queuePosition || 1;
+        estimatedCompletion = regularResponse.data.estimatedCompletion;
       }
 
-      console.log('[ProcessingJob] API Response:', response);
-      
-      if (!response.success || !response.data) {
-        const errorMsg = response.error || 'Failed to create processing job';
-        console.error('[ProcessingJob] Job creation failed:', errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      const jobData = response.data;
-      
-      // Handle different response formats
-      let jobId: string;
-      let queuePosition = 1;
-      let estimatedCompletion: string | null = null;
-      
-      if (mode === 'hybrid') {
-        // Hybrid AI response format
-        jobId = jobData.job_id;
-        estimatedCompletion = `${Math.round(jobData.estimated_completion_time)} seconds`;
-      } else {
-        // Regular processing response format
-        jobId = jobData.jobId;
-        queuePosition = jobData.queuePosition || 1;
-        estimatedCompletion = jobData.estimatedCompletion;
-      }
+      // Create normalized response for callback (always use ProcessingJobResponse format)
+      const normalizedJobData: ProcessingJobResponse = {
+        jobId,
+        status: 'queued' as JobStatus,
+        queuePosition,
+        estimatedCompletion: estimatedCompletion || new Date().toISOString(),
+      };
 
       // Update state with job information
       setState(prev => ({
@@ -246,7 +270,7 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
       }
 
       // Call user callback
-      optionsRef.current.onJobStarted?.(jobId, jobData);
+      optionsRef.current.onJobStarted?.(jobId, normalizedJobData);
 
       return jobId;
 
