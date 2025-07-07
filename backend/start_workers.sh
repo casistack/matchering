@@ -18,15 +18,25 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚀 Starting Matchering Celery Workers...${NC}"
 
-# Check if virtual environment exists
-if [ ! -d ".venv" ]; then
-    echo -e "${RED}❌ Virtual environment not found. Please run setup first.${NC}"
-    exit 1
+# Check if virtual environment is already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    # Not activated, check if virtual environment exists
+    if [ -d "../.venv" ]; then
+        # Virtual environment is in parent directory (project root)
+        echo -e "${YELLOW}📦 Activating virtual environment from project root...${NC}"
+        source ../.venv/bin/activate
+    elif [ -d ".venv" ]; then
+        # Virtual environment is in current directory
+        echo -e "${YELLOW}📦 Activating virtual environment from backend directory...${NC}"
+        source .venv/bin/activate
+    else
+        echo -e "${RED}❌ Virtual environment not found in backend/ or project root.${NC}"
+        echo -e "${YELLOW}💡 Please ensure .venv exists in the project root or run setup first.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ Virtual environment already activated: $VIRTUAL_ENV${NC}"
 fi
-
-# Activate virtual environment
-echo -e "${YELLOW}📦 Activating virtual environment...${NC}"
-source .venv/bin/activate
 
 # Check if Redis is running
 echo -e "${YELLOW}🔍 Checking Redis connection...${NC}"

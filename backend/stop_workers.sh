@@ -18,9 +18,17 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🛑 Stopping Matchering Celery Workers...${NC}"
 
-# Check if virtual environment exists and activate it
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
+# Check if virtual environment is already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    # Not activated, check if virtual environment exists
+    if [ -d "../.venv" ]; then
+        # Virtual environment is in parent directory (project root)
+        source ../.venv/bin/activate
+    elif [ -d ".venv" ]; then
+        # Virtual environment is in current directory
+        source .venv/bin/activate
+    fi
+    # Note: We don't exit if no venv found - we can still kill processes
 fi
 
 # Try graceful shutdown first
