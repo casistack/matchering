@@ -32,9 +32,24 @@ celery_app.conf.update(
     # Task routing and execution
     task_default_queue="matchering_default",
     task_routes={
-        "app.workers.audio_tasks.*": {"queue": "audio_processing"},
-        "app.workers.analysis_tasks.*": {"queue": "audio_analysis"},
-        "app.workers.file_tasks.*": {"queue": "file_operations"},
+        # Audio processing tasks
+        "process_audio_auto_master": {"queue": "audio_processing"},
+        "process_audio_reference_master": {"queue": "audio_processing"},
+        
+        # Audio analysis tasks  
+        "analyze_audio_file": {"queue": "audio_analysis"},
+        "extract_audio_features": {"queue": "audio_analysis"},
+        
+        # File operation tasks
+        "validate_uploaded_file": {"queue": "file_operations"},
+        "cleanup_temporary_files": {"queue": "file_operations"},
+        "cleanup_orphaned_files": {"queue": "file_operations"},
+        "archive_processed_files": {"queue": "file_operations"},
+        
+        # Maintenance tasks (use default queue)
+        "cleanup_old_results": {"queue": "matchering_default"},
+        "update_job_metrics": {"queue": "matchering_default"},
+        "update_processing_estimates": {"queue": "matchering_default"},
     },
     
     # Worker configuration
@@ -69,12 +84,20 @@ celery_app.conf.update(
     # Beat scheduler configuration (for periodic tasks)
     beat_schedule={
         "cleanup_old_results": {
-            "task": "app.workers.maintenance_tasks.cleanup_old_results",
+            "task": "cleanup_old_results",
             "schedule": 3600.0,  # Run every hour
         },
         "update_job_metrics": {
-            "task": "app.workers.maintenance_tasks.update_job_metrics", 
+            "task": "update_job_metrics", 
             "schedule": 300.0,   # Run every 5 minutes
+        },
+        "periodic_job_health_check": {
+            "task": "periodic_job_health_check",
+            "schedule": 600.0,   # Run every 10 minutes
+        },
+        "update_processing_estimates": {
+            "task": "update_processing_estimates",
+            "schedule": 1800.0,  # Run every 30 minutes
         },
     },
     timezone="UTC",

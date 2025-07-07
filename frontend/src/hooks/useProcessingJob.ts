@@ -233,9 +233,9 @@ export const useProcessingJob = (options: UseProcessingJobOptions = {}): UseProc
         }
 
         // Extract regular response data with proper typing
-        jobId = regularResponse.data.jobId;
-        queuePosition = regularResponse.data.queuePosition || 1;
-        estimatedCompletion = regularResponse.data.estimatedCompletion;
+        jobId = regularResponse.data.id; // Backend sends 'id', not 'jobId'
+        queuePosition = regularResponse.data.queue_position || 1; // Backend sends 'queue_position'
+        estimatedCompletion = regularResponse.data.estimated_completion;
       }
 
       // Create normalized response for callback (always use ProcessingJobResponse format)

@@ -41,6 +41,123 @@ class AudioAnalysisTask(Task):
             await self.session.close()
             self.session = None
 
+    async def _analyze_audio_file_async(self, file_id: str) -> Dict[str, Any]:
+        """Async implementation of audio analysis task."""
+        session = await self.get_session()
+        
+        try:
+            # Get audio file
+            from sqlalchemy import select
+            
+            query = select(AudioFile).where(AudioFile.id == uuid.UUID(file_id))
+            result = await session.execute(query)
+            audio_file = result.scalar_one_or_none()
+            
+            if not audio_file:
+                raise AudioFileError(f"Audio file {file_id} not found", "FILE_NOT_FOUND", {"file_id": file_id})
+            
+            file_path = Path(audio_file.file_path)
+            if not file_path.exists():
+                raise AudioFileError(f"Audio file does not exist: {file_path}", "FILE_NOT_EXISTS", {"file_path": str(file_path)})
+            
+            logger.info(f"Starting audio analysis for file {file_id}")
+            
+            # Perform analysis (placeholder implementation)
+            analysis_results = await _perform_audio_analysis(file_path)
+            
+            # Store metadata in database
+            metadata = AudioMetadata(
+                id=uuid.uuid4(),
+                audio_file_id=uuid.UUID(file_id),
+                rms_level=analysis_results.get("rms_level"),
+                peak_level=analysis_results.get("peak_level"),
+                dynamic_range=analysis_results.get("dynamic_range"),
+                spectral_centroid=analysis_results.get("spectral_centroid"),
+                spectral_rolloff=analysis_results.get("spectral_rolloff"),
+                zero_crossing_rate=analysis_results.get("zero_crossing_rate"),
+                lufs_integrated=analysis_results.get("lufs_integrated"),
+                lufs_short_term=analysis_results.get("lufs_short_term"),
+                lufs_momentary=analysis_results.get("lufs_momentary"),
+                true_peak=analysis_results.get("true_peak"),
+                mfcc_features=analysis_results.get("mfcc_features"),
+                spectral_features=analysis_results.get("spectral_features"),
+                tempo_features=analysis_results.get("tempo_features"),
+                analysis_version="1.0.0",
+                analysis_duration=analysis_results.get("analysis_duration")
+            )
+            
+            session.add(metadata)
+            
+            # Mark file as processing eligible if analysis successful
+            audio_file.processing_eligible = True
+            
+            await session.commit()
+            
+            logger.info(f"Audio analysis completed successfully for file {file_id}")
+            return {
+                "status": "completed",
+                "file_id": file_id,
+                "analysis_results": analysis_results,
+                "metadata_id": str(metadata.id)
+            }
+            
+        except Exception as e:
+            logger.error(f"Audio analysis failed for file {file_id}: {str(e)}")
+            # Mark file as not eligible for processing
+            if 'audio_file' in locals():
+                audio_file.processing_eligible = False
+                await session.commit()
+            raise
+        finally:
+            await self.close_session()
+
+    async def _extract_audio_features_async(self, file_id: str, feature_types: list[str]) -> Dict[str, Any]:
+        """Async implementation of feature extraction."""
+        session = await self.get_session()
+        
+        try:
+            # Get audio file
+            from sqlalchemy import select
+            
+            query = select(AudioFile).where(AudioFile.id == uuid.UUID(file_id))
+            result = await session.execute(query)
+            audio_file = result.scalar_one_or_none()
+            
+            if not audio_file:
+                raise AudioFileError(f"Audio file {file_id} not found", "FILE_NOT_FOUND", {"file_id": file_id})
+            
+            file_path = Path(audio_file.file_path)
+            
+            logger.info(f"Extracting features {feature_types} for file {file_id}")
+            
+            # Extract requested features
+            features = {}
+            
+            if "mfcc" in feature_types:
+                features["mfcc"] = await _extract_mfcc_features(file_path)
+            
+            if "spectral" in feature_types:
+                features["spectral"] = await _extract_spectral_features(file_path)
+            
+            if "tempo" in feature_types:
+                features["tempo"] = await _extract_tempo_features(file_path)
+            
+            if "loudness" in feature_types:
+                features["loudness"] = await _extract_loudness_features(file_path)
+            
+            logger.info(f"Feature extraction completed for file {file_id}")
+            return {
+                "status": "completed",
+                "file_id": file_id,
+                "features": features
+            }
+            
+        except Exception as e:
+            logger.error(f"Feature extraction failed for file {file_id}: {str(e)}")
+            raise
+        finally:
+            await self.close_session()
+
 
 @celery_app.task(bind=True, base=AudioAnalysisTask, name="analyze_audio_file")
 def analyze_audio_file(self: AudioAnalysisTask, file_id: str) -> Dict[str, Any]:
@@ -56,77 +173,6 @@ def analyze_audio_file(self: AudioAnalysisTask, file_id: str) -> Dict[str, Any]:
     return asyncio.run(self._analyze_audio_file_async(file_id))
 
 
-async def _analyze_audio_file_async(self: AudioAnalysisTask, file_id: str) -> Dict[str, Any]:
-    """Async implementation of audio analysis task."""
-    session = await self.get_session()
-    
-    try:
-        # Get audio file
-        from sqlalchemy import select
-        
-        query = select(AudioFile).where(AudioFile.id == uuid.UUID(file_id))
-        result = await session.execute(query)
-        audio_file = result.scalar_one_or_none()
-        
-        if not audio_file:
-            raise AudioFileError(f"Audio file {file_id} not found", "FILE_NOT_FOUND", {"file_id": file_id})
-        
-        file_path = Path(audio_file.file_path)
-        if not file_path.exists():
-            raise AudioFileError(f"Audio file does not exist: {file_path}", "FILE_NOT_EXISTS", {"file_path": str(file_path)})
-        
-        logger.info(f"Starting audio analysis for file {file_id}")
-        
-        # Perform analysis (placeholder implementation)
-        analysis_results = await _perform_audio_analysis(file_path)
-        
-        # Store metadata in database
-        metadata = AudioMetadata(
-            id=uuid.uuid4(),
-            audio_file_id=uuid.UUID(file_id),
-            rms_level=analysis_results.get("rms_level"),
-            peak_level=analysis_results.get("peak_level"),
-            dynamic_range=analysis_results.get("dynamic_range"),
-            spectral_centroid=analysis_results.get("spectral_centroid"),
-            spectral_rolloff=analysis_results.get("spectral_rolloff"),
-            zero_crossing_rate=analysis_results.get("zero_crossing_rate"),
-            lufs_integrated=analysis_results.get("lufs_integrated"),
-            lufs_short_term=analysis_results.get("lufs_short_term"),
-            lufs_momentary=analysis_results.get("lufs_momentary"),
-            true_peak=analysis_results.get("true_peak"),
-            mfcc_features=analysis_results.get("mfcc_features"),
-            spectral_features=analysis_results.get("spectral_features"),
-            tempo_features=analysis_results.get("tempo_features"),
-            analysis_version="1.0.0",
-            analysis_duration=analysis_results.get("analysis_duration")
-        )
-        
-        session.add(metadata)
-        
-        # Mark file as processing eligible if analysis successful
-        audio_file.processing_eligible = True
-        
-        await session.commit()
-        
-        logger.info(f"Audio analysis completed successfully for file {file_id}")
-        return {
-            "status": "completed",
-            "file_id": file_id,
-            "analysis_results": analysis_results,
-            "metadata_id": str(metadata.id)
-        }
-        
-    except Exception as e:
-        logger.error(f"Audio analysis failed for file {file_id}: {str(e)}")
-        # Mark file as not eligible for processing
-        if 'audio_file' in locals():
-            audio_file.processing_eligible = False
-            await session.commit()
-        raise
-    finally:
-        await self.close_session()
-
-
 @celery_app.task(bind=True, base=AudioAnalysisTask, name="extract_audio_features")
 def extract_audio_features(self: AudioAnalysisTask, file_id: str, feature_types: list[str]) -> Dict[str, Any]:
     """
@@ -140,54 +186,6 @@ def extract_audio_features(self: AudioAnalysisTask, file_id: str, feature_types:
         dict: Extracted features
     """
     return asyncio.run(self._extract_audio_features_async(file_id, feature_types))
-
-
-async def _extract_audio_features_async(self: AudioAnalysisTask, file_id: str, feature_types: list[str]) -> Dict[str, Any]:
-    """Async implementation of feature extraction."""
-    session = await self.get_session()
-    
-    try:
-        # Get audio file
-        from sqlalchemy import select
-        
-        query = select(AudioFile).where(AudioFile.id == uuid.UUID(file_id))
-        result = await session.execute(query)
-        audio_file = result.scalar_one_or_none()
-        
-        if not audio_file:
-            raise AudioFileError(f"Audio file {file_id} not found", "FILE_NOT_FOUND", {"file_id": file_id})
-        
-        file_path = Path(audio_file.file_path)
-        
-        logger.info(f"Extracting features {feature_types} for file {file_id}")
-        
-        # Extract requested features
-        features = {}
-        
-        if "mfcc" in feature_types:
-            features["mfcc"] = await _extract_mfcc_features(file_path)
-        
-        if "spectral" in feature_types:
-            features["spectral"] = await _extract_spectral_features(file_path)
-        
-        if "tempo" in feature_types:
-            features["tempo"] = await _extract_tempo_features(file_path)
-        
-        if "loudness" in feature_types:
-            features["loudness"] = await _extract_loudness_features(file_path)
-        
-        logger.info(f"Feature extraction completed for file {file_id}")
-        return {
-            "status": "completed",
-            "file_id": file_id,
-            "features": features
-        }
-        
-    except Exception as e:
-        logger.error(f"Feature extraction failed for file {file_id}: {str(e)}")
-        raise
-    finally:
-        await self.close_session()
 
 
 # Audio analysis helper functions (placeholder implementations)

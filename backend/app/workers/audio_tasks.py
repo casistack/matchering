@@ -60,7 +60,7 @@ def process_audio_auto_master(self: AudioProcessingTask, job_id: str) -> Dict[st
     Returns:
         dict: Processing results and metadata
     """
-    return asyncio.run(self._process_audio_auto_master_async(job_id))
+    return asyncio.run(_process_audio_auto_master_async(self, job_id))
 
 
 async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: str) -> Dict[str, Any]:
@@ -69,38 +69,38 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
     
     try:
         # Update job status to processing
-        await self._update_job_status(session, job_id, JobStatus.PROCESSING)
+        await _update_job_status(session, job_id, JobStatus.PROCESSING)
         
         # Stage 1: Validation
-        await self._update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input file")
-        input_file = await self._validate_input_file(session, job_id)
+        await _update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input file")
+        input_file = await _validate_input_file(session, job_id)
         
         # Stage 2: Feature Extraction  
-        await self._update_progress(session, job_id, ProcessingStage.FEATURE_EXTRACTION, 25.0, "Extracting audio features")
-        features = await self._extract_audio_features(session, input_file)
+        await _update_progress(session, job_id, ProcessingStage.FEATURE_EXTRACTION, 25.0, "Extracting audio features")
+        features = await _extract_audio_features(session, input_file)
         
         # Stage 3: AI Analysis
-        await self._update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 50.0, "Analyzing audio characteristics")
-        analysis = await self._analyze_audio_ai(session, features)
+        await _update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 50.0, "Analyzing audio characteristics")
+        analysis = await _analyze_audio_ai(session, features)
         
         # Stage 4: Parameter Prediction
-        await self._update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 70.0, "Predicting optimal parameters")
-        parameters = await self._predict_mastering_parameters(session, analysis)
+        await _update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 70.0, "Predicting optimal parameters")
+        parameters = await _predict_mastering_parameters(session, analysis)
         
         # Stage 5: Audio Processing
-        await self._update_progress(session, job_id, ProcessingStage.AUDIO_PROCESSING, 85.0, "Applying mastering processing")
-        output_path = await self._apply_mastering_processing(session, input_file, parameters)
+        await _update_progress(session, job_id, ProcessingStage.AUDIO_PROCESSING, 85.0, "Applying mastering processing")
+        output_path = await _apply_mastering_processing(session, input_file, parameters)
         
         # Stage 6: Quality Check
-        await self._update_progress(session, job_id, ProcessingStage.QUALITY_CHECK, 95.0, "Performing quality analysis")
-        quality_metrics = await self._perform_quality_check(session, output_path)
+        await _update_progress(session, job_id, ProcessingStage.QUALITY_CHECK, 95.0, "Performing quality analysis")
+        quality_metrics = await _perform_quality_check(session, output_path)
         
         # Stage 7: Finalization
-        await self._update_progress(session, job_id, ProcessingStage.FINALIZATION, 100.0, "Finalizing results")
-        result_metadata = await self._finalize_processing(session, job_id, output_path, quality_metrics)
+        await _update_progress(session, job_id, ProcessingStage.FINALIZATION, 100.0, "Finalizing results")
+        result_metadata = await _finalize_processing(session, job_id, output_path, quality_metrics)
         
         # Update job to completed
-        await self._update_job_status(session, job_id, JobStatus.COMPLETED, result_metadata)
+        await _update_job_status(session, job_id, JobStatus.COMPLETED, result_metadata)
         
         logger.info(f"Auto-mastering completed successfully for job {job_id}")
         return {
@@ -111,7 +111,7 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
         }
         
     except Exception as e:
-        await self._handle_processing_error(session, job_id, e)
+        await _handle_processing_error(session, job_id, e)
         raise
     finally:
         await self.close_session()
@@ -128,7 +128,7 @@ def process_audio_reference_master(self: AudioProcessingTask, job_id: str) -> Di
     Returns:
         dict: Processing results and metadata
     """
-    return asyncio.run(self._process_audio_reference_master_async(job_id))
+    return asyncio.run(_process_audio_reference_master_async(self, job_id))
 
 
 async def _process_audio_reference_master_async(self: AudioProcessingTask, job_id: str) -> Dict[str, Any]:
@@ -137,39 +137,39 @@ async def _process_audio_reference_master_async(self: AudioProcessingTask, job_i
     
     try:
         # Update job status to processing
-        await self._update_job_status(session, job_id, JobStatus.PROCESSING)
+        await _update_job_status(session, job_id, JobStatus.PROCESSING)
         
         # Stage 1: Validation
-        await self._update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input and reference files")
-        input_file, reference_file = await self._validate_reference_files(session, job_id)
+        await _update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input and reference files")
+        input_file, reference_file = await _validate_reference_files(session, job_id)
         
         # Stage 2: Feature Extraction
-        await self._update_progress(session, job_id, ProcessingStage.FEATURE_EXTRACTION, 30.0, "Extracting features from both files")
-        input_features = await self._extract_audio_features(session, input_file)
-        reference_features = await self._extract_audio_features(session, reference_file)
+        await _update_progress(session, job_id, ProcessingStage.FEATURE_EXTRACTION, 30.0, "Extracting features from both files")
+        input_features = await _extract_audio_features(session, input_file)
+        reference_features = await _extract_audio_features(session, reference_file)
         
         # Stage 3: Reference Analysis
-        await self._update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 55.0, "Analyzing reference characteristics")
-        reference_analysis = await self._analyze_reference_audio(session, reference_features)
+        await _update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 55.0, "Analyzing reference characteristics")
+        reference_analysis = await _analyze_reference_audio(session, reference_features)
         
         # Stage 4: Parameter Matching
-        await self._update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 75.0, "Matching to reference parameters")
-        parameters = await self._match_reference_parameters(session, input_features, reference_analysis)
+        await _update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 75.0, "Matching to reference parameters")
+        parameters = await _match_reference_parameters(session, input_features, reference_analysis)
         
         # Stage 5: Audio Processing
-        await self._update_progress(session, job_id, ProcessingStage.AUDIO_PROCESSING, 90.0, "Applying reference-based processing")
-        output_path = await self._apply_reference_processing(session, input_file, parameters)
+        await _update_progress(session, job_id, ProcessingStage.AUDIO_PROCESSING, 90.0, "Applying reference-based processing")
+        output_path = await _apply_reference_processing(session, input_file, parameters)
         
         # Stage 6: Quality Check
-        await self._update_progress(session, job_id, ProcessingStage.QUALITY_CHECK, 97.0, "Validating reference matching")
-        quality_metrics = await self._validate_reference_matching(session, output_path, reference_file)
+        await _update_progress(session, job_id, ProcessingStage.QUALITY_CHECK, 97.0, "Validating reference matching")
+        quality_metrics = await _validate_reference_matching(session, output_path, reference_file)
         
         # Stage 7: Finalization
-        await self._update_progress(session, job_id, ProcessingStage.FINALIZATION, 100.0, "Finalizing results")
-        result_metadata = await self._finalize_processing(session, job_id, output_path, quality_metrics)
+        await _update_progress(session, job_id, ProcessingStage.FINALIZATION, 100.0, "Finalizing results")
+        result_metadata = await _finalize_processing(session, job_id, output_path, quality_metrics)
         
         # Update job to completed
-        await self._update_job_status(session, job_id, JobStatus.COMPLETED, result_metadata)
+        await _update_job_status(session, job_id, JobStatus.COMPLETED, result_metadata)
         
         logger.info(f"Reference mastering completed successfully for job {job_id}")
         return {
@@ -180,7 +180,7 @@ async def _process_audio_reference_master_async(self: AudioProcessingTask, job_i
         }
         
     except Exception as e:
-        await self._handle_processing_error(session, job_id, e)
+        await _handle_processing_error(session, job_id, e)
         raise
     finally:
         await self.close_session()

@@ -48,6 +48,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     logger.info("Database tables created/verified")
     
+    # Perform enterprise job recovery
+    try:
+        logger.info("Performing enterprise job recovery...")
+        from app.utils.job_recovery import startup_job_recovery
+        recovery_stats = await startup_job_recovery()
+        logger.info(f"Job recovery completed: {recovery_stats}")
+        app.state.job_recovery_stats = recovery_stats
+    except Exception as e:
+        logger.error(f"Job recovery failed: {e}")
+        app.state.job_recovery_stats = {"error": str(e)}
+    
     # Initialize AI models for production
     if settings.ENABLE_AI_MODELS:
         try:
@@ -246,6 +257,28 @@ async def health_check() -> dict[str, str]:
         "service": "enhanced-matchering-api",
         "version": "3.0.0"
     }
+
+
+# Enterprise job health check endpoint
+@app.get("/health/jobs")
+async def job_health_check() -> dict:
+    """Enterprise job processing health check endpoint."""
+    try:
+        from app.utils.job_recovery import health_check_jobs
+        health_stats = await health_check_jobs()
+        return {
+            "status": "healthy" if health_stats["healthy"] else "unhealthy",
+            "service": "job-processing",
+            "stats": health_stats,
+            "startup_recovery": getattr(app.state, "job_recovery_stats", {})
+        }
+    except Exception as e:
+        logger.error(f"Job health check failed: {e}")
+        return {
+            "status": "error",
+            "service": "job-processing", 
+            "error": str(e)
+        }
 
 
 # Include API routes

@@ -373,11 +373,65 @@ async def _update_processing_estimates_async(self: MaintenanceTask) -> Dict[str,
         await self.close_session()
 
 
+@celery_app.task(bind=True, base=MaintenanceTask, name="periodic_job_health_check")
+def periodic_job_health_check(self: MaintenanceTask) -> Dict[str, Any]:
+    """
+    Perform periodic health check and cleanup of stuck jobs.
+    
+    This task runs regularly to identify and handle stuck or orphaned jobs
+    that may have been missed during normal operation.
+    
+    Returns:
+        dict: Health check and recovery statistics
+    """
+    return asyncio.run(self._periodic_job_health_check_async())
+
+
+async def _periodic_job_health_check_async(self: MaintenanceTask) -> Dict[str, Any]:
+    """Async implementation of periodic job health check."""
+    try:
+        logger.info("Starting periodic job health check...")
+        
+        from app.utils.job_recovery import job_recovery_manager
+        
+        # Perform health check
+        health_stats = await job_recovery_manager.check_job_health()
+        
+        recovery_stats = {"recovery_performed": False}
+        
+        # If unhealthy, perform limited recovery
+        if not health_stats["healthy"]:
+            logger.warning("Job system unhealthy, performing limited recovery...")
+            
+            # Perform a targeted recovery for stuck jobs only
+            # (less aggressive than full startup recovery)
+            recovery_stats = await job_recovery_manager.perform_startup_recovery()
+            recovery_stats["recovery_performed"] = True
+            
+            logger.info(f"Periodic recovery completed: {recovery_stats}")
+        
+        return {
+            "status": "completed",
+            "check_time": datetime.utcnow().isoformat(),
+            "health_stats": health_stats,
+            "recovery_stats": recovery_stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Periodic job health check failed: {e}")
+        return {
+            "status": "failed",
+            "error": str(e),
+            "check_time": datetime.utcnow().isoformat()
+        }
+
+
 # Export tasks
 __all__ = [
     "cleanup_old_results",
     "update_job_metrics",
     "cleanup_orphaned_files",
     "update_processing_estimates",
+    "periodic_job_health_check",
     "MaintenanceTask"
 ]
