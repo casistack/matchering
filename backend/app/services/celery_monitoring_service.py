@@ -149,11 +149,21 @@ class CeleryMonitoringService:
             
             if stats:
                 for worker_id, worker_stats in stats.items():
+                    # Get system load average (Linux only)
+                    load_avg = []
+                    try:
+                        with open("/proc/loadavg", "r") as f:
+                            load_data = f.read().strip().split()[:3]
+                            load_avg = [float(x) for x in load_data]
+                    except (FileNotFoundError, ValueError, IndexError):
+                        # Fallback for non-Linux systems or if file is unavailable
+                        load_avg = []
+                    
                     workers_info[worker_id] = {
                         "hostname": worker_stats.get("broker", {}).get("hostname", worker_id),
                         "processed": worker_stats.get("total", {}).get("tasks.total", 0),
                         "active": len(active.get(worker_id, [])) if active else 0,
-                        "loadavg": worker_stats.get("rusage", {}).get("utime", []),
+                        "loadavg": load_avg,
                         "memory": {
                             "rss": worker_stats.get("rusage", {}).get("maxrss", 0),
                             "percent": 0  # Would need psutil for accurate memory percentage
