@@ -10,12 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 from contextlib import asynccontextmanager
 import asyncio
 import logging
 from datetime import datetime
 from typing import AsyncGenerator
+from pathlib import Path
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -349,6 +351,11 @@ async def communication_health_check() -> dict:
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Mount static files for serving processed audio files
+uploads_dir = Path(settings.UPLOAD_DIR).resolve()
+uploads_dir.mkdir(exist_ok=True)  # Ensure the directory exists
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # Debug endpoint to check CORS configuration
 @app.get("/debug/cors")

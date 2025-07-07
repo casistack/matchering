@@ -241,11 +241,28 @@ async def _update_job_status(
     # Send status update via Redis bridge
     try:
         if status == JobStatus.COMPLETED:
+            # Construct proper URL for output file with URL encoding
+            output_file_url = None
+            if metadata and metadata.get("output_file"):
+                from urllib.parse import quote
+                output_file_path = metadata.get("output_file")
+                
+                # Ensure proper URL formatting with forward slash and URL encoding
+                if output_file_path.startswith("uploads/"):
+                    # URL encode the filename part to handle spaces and special characters
+                    path_parts = output_file_path.split('/')
+                    encoded_filename = quote(path_parts[-1])  # URL encode just the filename
+                    output_file_url = f"/{path_parts[0]}/{encoded_filename}"
+                else:
+                    # URL encode the filename part
+                    encoded_filename = quote(output_file_path)
+                    output_file_url = f"/uploads/{encoded_filename}"
+            
             await publish_job_completed(job_id, {
                 "status": status.value,
                 "message": "Job completed successfully",
                 "timestamp": datetime.utcnow().isoformat(),
-                "output_file_url": metadata.get("output_file") if metadata else None,
+                "output_file_url": output_file_url,
                 "processing_metadata": metadata if metadata else None
             })
         else:
