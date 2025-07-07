@@ -26,6 +26,11 @@ from app.core.exceptions import (
     JobNotFoundError,
     JobStateError
 )
+from app.utils.redis_bridge import (
+    publish_progress_update, 
+    publish_status_update, 
+    publish_job_completed
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,24 +238,25 @@ async def _update_job_status(
     )
     await session.commit()
     
-    # Send WebSocket broadcast for status change
+    # Send status update via Redis bridge
     try:
-        from app.api.v1.endpoints.processing import broadcast_message
-        websocket_message = {
-            "type": "job_completed" if status == JobStatus.COMPLETED else "job_failed" if status == JobStatus.FAILED else "status_update",
-            "payload": {
-                "job_id": job_id,
+        if status == JobStatus.COMPLETED:
+            await publish_job_completed(job_id, {
                 "status": status.value,
-                "message": "Job completed successfully" if status == JobStatus.COMPLETED else f"Job status updated to {status.value}",
+                "message": "Job completed successfully",
                 "timestamp": datetime.utcnow().isoformat(),
-                "output_file_url": metadata.get("output_file") if metadata and status == JobStatus.COMPLETED else None,
-                "processing_metadata": metadata if status == JobStatus.COMPLETED else None
-            }
-        }
-        await broadcast_message(job_id, websocket_message)
-        logger.debug(f"WebSocket status broadcast sent for job {job_id}: {status.value}")
+                "output_file_url": metadata.get("output_file") if metadata else None,
+                "processing_metadata": metadata if metadata else None
+            })
+        else:
+            await publish_status_update(
+                job_id, 
+                status.value, 
+                "Job completed successfully" if status == JobStatus.COMPLETED else f"Job status updated to {status.value}"
+            )
+        logger.debug(f"Redis status update sent for job {job_id}: {status.value}")
     except Exception as e:
-        logger.warning(f"Failed to send WebSocket status update for job {job_id}: {e}")
+        logger.warning(f"Failed to send Redis status update for job {job_id}: {e}")
 
 
 async def _update_progress(
@@ -288,27 +294,22 @@ async def _update_progress(
     session.add(progress)
     await session.commit()
     
-    # Send WebSocket broadcast to frontend
+    # Send progress update via Redis bridge
     try:
-        from app.api.v1.endpoints.processing import broadcast_message
-        websocket_message = {
-            "type": "processing_progress",
-            "payload": {
-                "job_id": job_id,
-                "status": "PROCESSING",
-                "progress_percentage": percentage,
-                "current_stage": stage.value,
-                "message": message,
-                "elapsed_time": 0,  # TODO: Calculate actual elapsed time
-                "remaining_time": 0,  # TODO: Calculate actual remaining time
-                "timestamp": datetime.utcnow().isoformat(),
-                "details": details or {}
-            }
-        }
-        await broadcast_message(job_id, websocket_message)
-        logger.debug(f"WebSocket progress broadcast sent for job {job_id}: {stage.value} {percentage}%")
+        await publish_progress_update(job_id, {
+            "job_id": job_id,
+            "status": "PROCESSING",
+            "progress_percentage": percentage,
+            "current_stage": stage.value,
+            "message": message,
+            "elapsed_time": 0,  # TODO: Calculate actual elapsed time
+            "remaining_time": 0,  # TODO: Calculate actual remaining time
+            "timestamp": datetime.utcnow().isoformat(),
+            "details": details or {}
+        })
+        logger.debug(f"Redis progress update sent for job {job_id}: {stage.value} {percentage}%")
     except Exception as e:
-        logger.warning(f"Failed to send WebSocket progress update for job {job_id}: {e}")
+        logger.warning(f"Failed to send Redis progress update for job {job_id}: {e}")
 
 
 async def _validate_input_file(session: AsyncSession, job_id: str) -> AudioFile:

@@ -46,15 +46,59 @@ from app.utils.request_utils import (
 from app.utils.validation_utils import validate_uuid_string, validate_pagination_params, validate_processing_mode
 from app.utils.enterprise_logger import enterprise_logger, log_error, log_user_action, log_user_settings
 from app.workers.audio_tasks import process_audio_auto_master, process_audio_reference_master
+from app.utils.redis_bridge import get_redis_bridge
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# WebSocket connection manager
+# Enhanced WebSocket connection manager with Redis bridge integration
 class WebSocketManager:
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.redis_bridge = None
+        self.redis_handler_id = None
+    
+    async def initialize(self):
+        """Initialize Redis bridge for cross-process communication."""
+        try:
+            self.redis_bridge = await get_redis_bridge()
+            
+            # Register handler for incoming Redis messages
+            self.redis_handler_id = self.redis_bridge.register_message_handler(
+                self._handle_redis_message
+            )
+            
+            # Start listening for WebSocket messages from Redis
+            await self.redis_bridge.start_listening()
+            
+            logger.info("🔗 WebSocket manager Redis bridge initialized")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize WebSocket Redis bridge: {e}")
+            return False
+    
+    async def cleanup(self):
+        """Clean up Redis bridge resources."""
+        try:
+            if self.redis_bridge and self.redis_handler_id:
+                self.redis_bridge.unregister_message_handler(self.redis_handler_id)
+                await self.redis_bridge.stop_listening()
+            logger.info("🔗 WebSocket manager Redis bridge cleaned up")
+        except Exception as e:
+            logger.error(f"❌ Error cleaning up WebSocket Redis bridge: {e}")
+    
+    async def _handle_redis_message(self, job_id: str, message_data: Dict[str, Any]):
+        """Handle incoming Redis messages and forward to WebSocket clients."""
+        try:
+            logger.info(f"📨 Received Redis message for job {job_id}: {message_data.get('type', 'unknown')}")
+            
+            # Forward message to WebSocket clients for this job
+            await self.broadcast_to_job(job_id, message_data)
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling Redis message for job {job_id}: {e}")
     
     async def connect(self, websocket: WebSocket, job_id: str):
         """Connect a WebSocket for a specific job."""

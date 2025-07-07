@@ -112,12 +112,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.models_initialized = False
         app.state.available_models = []
     
+    # Initialize WebSocket manager with Redis bridge
+    try:
+        logger.info("Initializing WebSocket manager with Redis bridge...")
+        from app.api.v1.endpoints.processing import websocket_manager
+        websocket_init_success = await websocket_manager.initialize()
+        app.state.websocket_manager_initialized = websocket_init_success
+        if websocket_init_success:
+            logger.info("✅ WebSocket manager with Redis bridge initialized successfully")
+        else:
+            logger.warning("⚠️ WebSocket manager initialization failed - real-time updates may not work")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize WebSocket manager: {e}")
+        app.state.websocket_manager_initialized = False
+    
     logger.info("Enhanced Matchering API started successfully")
     
     yield
     
     # Shutdown
     logger.info("Shutting down Enhanced Matchering API...")
+    
+    # Clean up WebSocket manager and Redis bridge
+    try:
+        if getattr(app.state, 'websocket_manager_initialized', False):
+            logger.info("Cleaning up WebSocket manager...")
+            from app.api.v1.endpoints.processing import websocket_manager
+            await websocket_manager.cleanup()
+            from app.utils.redis_bridge import cleanup_redis_bridge
+            await cleanup_redis_bridge()
+            logger.info("✅ WebSocket manager cleaned up")
+    except Exception as e:
+        logger.error(f"❌ Error cleaning up WebSocket manager: {e}")
     
     # Clean up AI models
     if hasattr(app.state, 'model_manager') and app.state.model_manager:
@@ -277,6 +303,46 @@ async def job_health_check() -> dict:
         return {
             "status": "error",
             "service": "job-processing", 
+            "error": str(e)
+        }
+
+
+# Enterprise communication health check endpoint
+@app.get("/health/communication")
+async def communication_health_check() -> dict:
+    """Enterprise communication system health check endpoint."""
+    try:
+        from app.utils.redis_bridge import get_redis_bridge
+        from app.api.v1.endpoints.processing import websocket_manager
+        
+        # Check Redis bridge health
+        redis_available = False
+        try:
+            bridge = await get_redis_bridge()
+            redis_available = bridge is not None
+        except Exception as e:
+            logger.warning(f"Redis bridge check failed: {e}")
+        
+        # Check WebSocket manager status
+        websocket_initialized = getattr(app.state, "websocket_manager_initialized", False)
+        
+        # Count active WebSocket connections
+        active_connections = len(websocket_manager.active_connections) if hasattr(websocket_manager, 'active_connections') else 0
+        
+        return {
+            "status": "healthy" if redis_available else "degraded",
+            "service": "communication-bridge",
+            "redis_available": redis_available,
+            "websocket_manager_initialized": websocket_initialized,
+            "active_websocket_connections": active_connections,
+            "fallback_mode": not redis_available
+        }
+        
+    except Exception as e:
+        logger.error(f"Communication health check failed: {e}")
+        return {
+            "status": "error",
+            "service": "communication-bridge",
             "error": str(e)
         }
 

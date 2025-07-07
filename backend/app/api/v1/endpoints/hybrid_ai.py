@@ -1089,46 +1089,24 @@ async def _process_audio_background(
             print(f"[DEBUG] Background task started for job {job_id}")
             logger.error(f"[DEBUG] Background task started for job {job_id} - This should be visible in logs")
             
-            # Import WebSocket broadcast function
-            from app.api.v1.endpoints.processing import broadcast_message, websocket_manager
+            # Import Redis bridge for real-time updates
+            from app.utils.redis_bridge import publish_progress_update, publish_status_update, publish_job_completed
             
-            # Wait longer for WebSocket connection to fully establish
-            # This prevents race condition where progress messages are sent before client connects
-            await asyncio.sleep(1.0)
-            
-            # Additional check to ensure WebSocket connection is ready
-            retry_count = 0
-            max_retries = 10
-            logger.error(f"[DEBUG] Starting WebSocket connection check for job {job_id}")
-            logger.error(f"[DEBUG] Current active connections: {list(websocket_manager.active_connections.keys())}")
-            
-            while retry_count < max_retries:
-                if job_id in websocket_manager.active_connections and websocket_manager.active_connections[job_id]:
-                    logger.error(f"[DEBUG] WebSocket connection confirmed ready for job {job_id}")
-                    break
-                logger.error(f"[DEBUG] Waiting for WebSocket connection for job {job_id}, retry {retry_count + 1}/{max_retries}")
-                await asyncio.sleep(0.2)
-                retry_count += 1
-            
-            if retry_count >= max_retries:
-                logger.error(f"[DEBUG] WebSocket connection not ready after {max_retries} retries for job {job_id}")
-                logger.error(f"[DEBUG] Final active connections: {list(websocket_manager.active_connections.keys())}")
+            # Wait for initial setup
+            await asyncio.sleep(0.5)
             
             # Send initial progress update
             try:
                 logger.error(f"[DEBUG] Attempting to send initial progress update for job {job_id}")
                 elapsed = int(time.time() - proc_ctx.start_time)
-                await broadcast_message(job_id, {
-                    "type": "processing_progress", 
-                    "payload": {
-                        "job_id": job_id,
-                        "progress_percentage": 5,
-                        "current_stage": "starting",
-                        "status": "processing",
-                        "message": "Initializing AI processing...",
-                        "elapsed_time": elapsed,
-                        "remaining_time": _calculate_remaining_time(elapsed, 5)
-                    },
+                await publish_progress_update(job_id, {
+                    "job_id": job_id,
+                    "progress_percentage": 5,
+                    "current_stage": "starting",
+                    "status": "processing",
+                    "message": "Initializing AI processing...",
+                    "elapsed_time": elapsed,
+                    "remaining_time": _calculate_remaining_time(elapsed, 5),
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
@@ -1169,17 +1147,14 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 15% progress update for job {job_id}")
                 elapsed = int(time.time() - proc_ctx.start_time)
-                await broadcast_message(job_id, {
-                    "type": "processing_progress",
-                    "payload": {
-                        "job_id": job_id,
-                        "progress_percentage": 15,
-                        "current_stage": "loading",
-                        "status": "processing",
-                        "message": "Loading audio file...",
-                        "elapsed_time": elapsed,
-                        "remaining_time": _calculate_remaining_time(elapsed, 15)
-                    },
+                await publish_progress_update(job_id, {
+                    "job_id": job_id,
+                    "progress_percentage": 15,
+                    "current_stage": "loading",
+                    "status": "processing",
+                    "message": "Loading audio file...",
+                    "elapsed_time": elapsed,
+                    "remaining_time": _calculate_remaining_time(elapsed, 15),
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
@@ -1195,17 +1170,14 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 25% progress update for job {job_id}")
                 elapsed = int(time.time() - proc_ctx.start_time)
-                await broadcast_message(job_id, {
-                    "type": "processing_progress",
-                    "payload": {
-                        "job_id": job_id,
-                        "progress_percentage": 25,
-                        "current_stage": "feature_extraction",
-                        "status": "processing",
-                        "message": "Extracting AI features from audio...",
-                        "elapsed_time": elapsed,
-                        "remaining_time": _calculate_remaining_time(elapsed, 25)
-                    },
+                await publish_progress_update(job_id, {
+                    "job_id": job_id,
+                    "progress_percentage": 25,
+                    "current_stage": "feature_extraction",
+                    "status": "processing",
+                    "message": "Extracting AI features from audio...",
+                    "elapsed_time": elapsed,
+                    "remaining_time": _calculate_remaining_time(elapsed, 25),
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
@@ -1248,17 +1220,14 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 60% progress update for job {job_id}")
                 elapsed = int(time.time() - proc_ctx.start_time)
-                await broadcast_message(job_id, {
-                    "type": "processing_progress",
-                    "payload": {
-                        "job_id": job_id,
-                        "progress_percentage": 60,
-                        "current_stage": "ai_analysis",
-                        "status": "processing",
-                        "message": "AI analysis completed, applying mastering...",
-                        "elapsed_time": elapsed,
-                        "remaining_time": _calculate_remaining_time(elapsed, 60)
-                    },
+                await publish_progress_update(job_id, {
+                    "job_id": job_id,
+                    "progress_percentage": 60,
+                    "current_stage": "ai_analysis",
+                    "status": "processing",
+                    "message": "AI analysis completed, applying mastering...",
+                    "elapsed_time": elapsed,
+                    "remaining_time": _calculate_remaining_time(elapsed, 60),
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
@@ -1286,17 +1255,14 @@ async def _process_audio_background(
             try:
                 logger.error(f"[DEBUG] Attempting to send 70% progress update for job {job_id}")
                 elapsed = int(time.time() - proc_ctx.start_time)
-                await broadcast_message(job_id, {
-                    "type": "processing_progress",
-                    "payload": {
-                        "job_id": job_id,
-                        "progress_percentage": 70,
-                        "current_stage": "mastering",
-                        "status": "processing",
-                        "message": "Applying AI-guided mastering...",
-                        "elapsed_time": elapsed,
-                        "remaining_time": _calculate_remaining_time(elapsed, 70)
-                    },
+                await publish_progress_update(job_id, {
+                    "job_id": job_id,
+                    "progress_percentage": 70,
+                    "current_stage": "mastering",
+                    "status": "processing",
+                    "message": "Applying AI-guided mastering...",
+                    "elapsed_time": elapsed,
+                    "remaining_time": _calculate_remaining_time(elapsed, 70),
                     "timestamp": time.time(),
                     "message_id": f"progress_{job_id}_{int(time.time())}"
                 })
@@ -1344,17 +1310,14 @@ async def _process_audio_background(
                     try:
                         logger.error(f"[DEBUG] Attempting to send 95% progress update for job {job_id}")
                         elapsed = int(time.time() - proc_ctx.start_time)
-                        await broadcast_message(job_id, {
-                            "type": "processing_progress",
-                            "payload": {
-                                "job_id": job_id,
-                                "progress_percentage": 95,
-                                "current_stage": "finalizing",
-                                "status": "processing",
-                                "message": "Finalizing mastered audio...",
-                                "elapsed_time": elapsed,
-                                "remaining_time": _calculate_remaining_time(elapsed, 95)
-                            },
+                        await publish_progress_update(job_id, {
+                            "job_id": job_id,
+                            "progress_percentage": 95,
+                            "current_stage": "finalizing",
+                            "status": "processing",
+                            "message": "Finalizing mastered audio...",
+                            "elapsed_time": elapsed,
+                            "remaining_time": _calculate_remaining_time(elapsed, 95),
                             "timestamp": time.time(),
                             "message_id": f"progress_{job_id}_{int(time.time())}"
                         })
@@ -1378,7 +1341,7 @@ async def _process_audio_background(
         
         # Send completion notification via WebSocket with AI predictions
         try:
-            from app.api.v1.endpoints.processing import broadcast_message
+            # No longer need direct WebSocket imports - using Redis bridge
             
             # Create AI predictions object for frontend
             ai_predictions = {
@@ -1408,9 +1371,9 @@ async def _process_audio_background(
                 "message_id": f"completion_{job_id}"
             }
             
-            # Broadcast to WebSocket clients
-            await broadcast_message(job_id, completion_message)
-            logger.info(f"WebSocket completion message sent for job {job_id}")
+            # Send completion via Redis bridge
+            await publish_job_completed(job_id, completion_message["payload"])
+            logger.info(f"Redis completion message sent for job {job_id}")
             
         except Exception as ws_error:
             logger.error(f"Failed to send WebSocket completion message: {ws_error}")
