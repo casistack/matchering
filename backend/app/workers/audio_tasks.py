@@ -68,36 +68,46 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
     session = await self.get_session()
     
     try:
+        # Small delay to allow frontend WebSocket connection to establish
+        await asyncio.sleep(0.5)
+        
         # Update job status to processing
         await _update_job_status(session, job_id, JobStatus.PROCESSING)
         
         # Stage 1: Validation
         await _update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input file")
         input_file = await _validate_input_file(session, job_id)
+        await asyncio.sleep(0.3)  # Allow WebSocket message to be sent
         
         # Stage 2: Feature Extraction  
         await _update_progress(session, job_id, ProcessingStage.FEATURE_EXTRACTION, 25.0, "Extracting audio features")
         features = await _extract_audio_features(session, input_file)
+        await asyncio.sleep(0.3)
         
         # Stage 3: AI Analysis
         await _update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 50.0, "Analyzing audio characteristics")
         analysis = await _analyze_audio_ai(session, features)
+        await asyncio.sleep(0.3)
         
         # Stage 4: Parameter Prediction
         await _update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 70.0, "Predicting optimal parameters")
         parameters = await _predict_mastering_parameters(session, analysis)
+        await asyncio.sleep(0.3)
         
         # Stage 5: Audio Processing
         await _update_progress(session, job_id, ProcessingStage.AUDIO_PROCESSING, 85.0, "Applying mastering processing")
         output_path = await _apply_mastering_processing(session, input_file, parameters)
+        await asyncio.sleep(0.4)  # Longer delay for main processing
         
         # Stage 6: Quality Check
         await _update_progress(session, job_id, ProcessingStage.QUALITY_CHECK, 95.0, "Performing quality analysis")
         quality_metrics = await _perform_quality_check(session, output_path)
+        await asyncio.sleep(0.3)
         
         # Stage 7: Finalization
         await _update_progress(session, job_id, ProcessingStage.FINALIZATION, 100.0, "Finalizing results")
         result_metadata = await _finalize_processing(session, job_id, output_path, quality_metrics)
+        await asyncio.sleep(0.2)
         
         # Update job to completed
         await _update_job_status(session, job_id, JobStatus.COMPLETED, result_metadata)
@@ -136,6 +146,9 @@ async def _process_audio_reference_master_async(self: AudioProcessingTask, job_i
     session = await self.get_session()
     
     try:
+        # Small delay to allow frontend WebSocket connection to establish
+        await asyncio.sleep(0.5)
+        
         # Update job status to processing
         await _update_job_status(session, job_id, JobStatus.PROCESSING)
         
@@ -202,7 +215,7 @@ async def _update_job_status(
     job = result.scalar_one_or_none()
     
     if not job:
-        raise JobNotFoundError(f"Job {job_id} not found", "JOB_NOT_FOUND", {"job_id": job_id})
+        raise JobNotFoundError(job_id)
     
     update_data = {"status": status}
     
@@ -219,6 +232,25 @@ async def _update_job_status(
         .values(**update_data)
     )
     await session.commit()
+    
+    # Send WebSocket broadcast for status change
+    try:
+        from app.api.v1.endpoints.processing import broadcast_message
+        websocket_message = {
+            "type": "job_completed" if status == JobStatus.COMPLETED else "job_failed" if status == JobStatus.FAILED else "status_update",
+            "payload": {
+                "job_id": job_id,
+                "status": status.value,
+                "message": "Job completed successfully" if status == JobStatus.COMPLETED else f"Job status updated to {status.value}",
+                "timestamp": datetime.utcnow().isoformat(),
+                "output_file_url": metadata.get("output_file") if metadata and status == JobStatus.COMPLETED else None,
+                "processing_metadata": metadata if status == JobStatus.COMPLETED else None
+            }
+        }
+        await broadcast_message(job_id, websocket_message)
+        logger.debug(f"WebSocket status broadcast sent for job {job_id}: {status.value}")
+    except Exception as e:
+        logger.warning(f"Failed to send WebSocket status update for job {job_id}: {e}")
 
 
 async def _update_progress(
@@ -255,6 +287,28 @@ async def _update_progress(
     
     session.add(progress)
     await session.commit()
+    
+    # Send WebSocket broadcast to frontend
+    try:
+        from app.api.v1.endpoints.processing import broadcast_message
+        websocket_message = {
+            "type": "processing_progress",
+            "payload": {
+                "job_id": job_id,
+                "status": "PROCESSING",
+                "progress_percentage": percentage,
+                "current_stage": stage.value,
+                "message": message,
+                "elapsed_time": 0,  # TODO: Calculate actual elapsed time
+                "remaining_time": 0,  # TODO: Calculate actual remaining time
+                "timestamp": datetime.utcnow().isoformat(),
+                "details": details or {}
+            }
+        }
+        await broadcast_message(job_id, websocket_message)
+        logger.debug(f"WebSocket progress broadcast sent for job {job_id}: {stage.value} {percentage}%")
+    except Exception as e:
+        logger.warning(f"Failed to send WebSocket progress update for job {job_id}: {e}")
 
 
 async def _validate_input_file(session: AsyncSession, job_id: str) -> AudioFile:
@@ -267,7 +321,7 @@ async def _validate_input_file(session: AsyncSession, job_id: str) -> AudioFile:
     job = result.scalar_one_or_none()
     
     if not job:
-        raise JobNotFoundError(f"Job {job_id} not found", "JOB_NOT_FOUND", {"job_id": job_id})
+        raise JobNotFoundError(job_id)
     
     query = select(AudioFile).where(AudioFile.id == job.input_file_id)
     result = await session.execute(query)
@@ -297,7 +351,7 @@ async def _validate_reference_files(session: AsyncSession, job_id: str) -> tuple
     job = result.scalar_one_or_none()
     
     if not job:
-        raise JobNotFoundError(f"Job {job_id} not found", "JOB_NOT_FOUND", {"job_id": job_id})
+        raise JobNotFoundError(job_id)
     
     if not job.reference_file_id:
         raise ProcessingError(f"No reference file specified for job {job_id}", "NO_REFERENCE_FILE", {"job_id": job_id})

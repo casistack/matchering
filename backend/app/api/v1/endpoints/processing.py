@@ -58,13 +58,13 @@ class WebSocketManager:
     
     async def connect(self, websocket: WebSocket, job_id: str):
         """Connect a WebSocket for a specific job."""
-        logger.error(f"[DEBUG] WebSocketManager.connect called for job {job_id}")
+        logger.info(f"[WebSocket] Connecting WebSocket for job {job_id}")
         await websocket.accept()
         if job_id not in self.active_connections:
             self.active_connections[job_id] = []
         self.active_connections[job_id].append(websocket)
-        logger.error(f"[DEBUG] WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
-        logger.info(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
+        logger.info(f"[WebSocket] ✅ WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
+        logger.info(f"[WebSocket] 📊 Active connections summary: {list(self.active_connections.keys())}")
     
     def disconnect(self, websocket: WebSocket, job_id: str):
         """Disconnect a WebSocket for a specific job."""
@@ -77,23 +77,33 @@ class WebSocketManager:
     
     async def broadcast_to_job(self, job_id: str, message: Dict):
         """Broadcast message to all WebSocket connections for a specific job."""
+        logger.info(f"[WebSocket] 📡 Broadcasting to job {job_id}: {message.get('type', 'unknown')}")
+        logger.info(f"[WebSocket] 📊 Available connections: {list(self.active_connections.keys())}")
+        
         if job_id not in self.active_connections:
-            logger.warning(f"No active WebSocket connections for job {job_id}")
+            logger.warning(f"[WebSocket] ❌ No active WebSocket connections for job {job_id}")
+            logger.warning(f"[WebSocket] 📋 Available job IDs: {list(self.active_connections.keys())}")
             return
+        
+        connections = self.active_connections[job_id]
+        logger.info(f"[WebSocket] 📤 Sending to {len(connections)} connections for job {job_id}")
         
         message_text = json.dumps(message)
         disconnected_connections = []
         
-        for connection in self.active_connections[job_id]:
+        for i, connection in enumerate(connections):
             try:
                 await connection.send_text(message_text)
+                logger.info(f"[WebSocket] ✅ Message sent to connection {i+1}/{len(connections)}")
             except Exception as e:
-                logger.error(f"Failed to send WebSocket message: {e}")
+                logger.error(f"[WebSocket] ❌ Failed to send WebSocket message to connection {i+1}: {e}")
                 disconnected_connections.append(connection)
         
         # Clean up disconnected connections
         for connection in disconnected_connections:
             self.disconnect(connection, job_id)
+            
+        logger.info(f"[WebSocket] 🎯 Successfully broadcast {message.get('type', 'unknown')} to {len(connections) - len(disconnected_connections)} connections")
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketManager()
@@ -1001,16 +1011,15 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
         job_id: Processing job identifier
     """
     try:
-        logger.error(f"[DEBUG] WebSocket connection attempt for job {job_id}")
-        print(f"[DEBUG] WebSocket connection attempt for job {job_id}")
+        logger.info(f"[WebSocket] 🔌 WebSocket connection attempt for job {job_id}")
         
         # Validate job exists
         validate_uuid_string(job_id, "job_id")
         
         # Connect to WebSocket manager
-        logger.error(f"[DEBUG] Connecting WebSocket for job {job_id}")
+        logger.info(f"[WebSocket] 🤝 Registering WebSocket connection for job {job_id}")
         await websocket_manager.connect(websocket, job_id)
-        logger.error(f"[DEBUG] WebSocket connected successfully for job {job_id}")
+        logger.info(f"[WebSocket] ✅ WebSocket registered successfully for job {job_id}")
         
         # Send initial status
         initial_status = {
@@ -1024,6 +1033,7 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
         }
         
         await websocket.send_text(json.dumps(initial_status))
+        logger.info(f"[WebSocket] 📨 Initial connection message sent for job {job_id}")
         
         # Keep connection alive and listen for disconnect
         import asyncio
@@ -1032,12 +1042,12 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
                 # Wait for any data (typically disconnect)
                 await websocket.receive_text()
         except WebSocketDisconnect:
-            logger.info(f"WebSocket connection closed for job: {job_id}")
+            logger.info(f"[WebSocket] 🔌 WebSocket connection closed for job: {job_id}")
         
     except WebSocketDisconnect:
-        logger.info(f"WebSocket connection closed for job: {job_id}")
+        logger.info(f"[WebSocket] 🔌 WebSocket connection closed for job: {job_id}")
     except Exception as e:
-        logger.error(f"WebSocket error for job {job_id}: {e}")
+        logger.error(f"[WebSocket] ❌ WebSocket error for job {job_id}: {e}")
         try:
             error_data = {
                 "type": "error",
@@ -1054,4 +1064,5 @@ async def websocket_job_updates(websocket: WebSocket, job_id: str):
             pass
     finally:
         # Ensure cleanup
+        logger.info(f"[WebSocket] 🧹 Cleaning up WebSocket connection for job {job_id}")
         websocket_manager.disconnect(websocket, job_id)
