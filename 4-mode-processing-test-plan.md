@@ -247,11 +247,28 @@ allowed_modes = ['auto', 'reference', 'hybrid']  # Missing 'advanced'
 3. **Test HYBRID Mode** (expect fallback behavior)
 4. **Skip ADVANCED Mode** (until backend complete)
 
+### Post-Processing Validation Order
+1. **Immediate Check**: File integrity (size, format, length)
+2. **Quick Analysis**: LUFS measurement and peak levels
+3. **A/B Testing**: Load in MasteringComparison component
+4. **Detailed Analysis**: Frequency response and dynamics
+5. **Genre Validation**: Check genre-specific improvements
+
 ### Test Data Recommendations
 - **Audio Format**: WAV, FLAC, MP3 (various)
 - **File Size**: 3-5 minute tracks (~10-50MB)
 - **Genres**: Hip-hop, Pop, Rock, Electronic (test genre detection)
 - **Quality**: Mix of professional and amateur recordings
+
+### Reference Track Selection (for REFERENCE mode)
+- **Professional Masters**: Use commercially released tracks
+- **Genre Matching**: Reference should match input genre
+- **Quality Standards**: LUFS between -16 and -8
+- **Recommended References**:
+  - Hip-hop: Drake - "God's Plan" (-8 LUFS)
+  - Pop: Taylor Swift - "Anti-Hero" (-9 LUFS)
+  - Rock: Foo Fighters - "Everlong" (-10 LUFS)
+  - Electronic: Daft Punk - "Get Lucky" (-8 LUFS)
 
 ### Monitoring Setup
 ```bash
@@ -359,6 +376,21 @@ Test Results:
 [ ] Quality metrics generated
 [ ] Download successful
 
+Post-Processing Validation:
+[ ] File size correct (~38MB for 3-min track)
+[ ] LUFS measured: Original: ____ Mastered: ____
+[ ] Peak levels: Original: ____ Mastered: ____
+[ ] No clipping detected
+[ ] A/B comparison performed
+[ ] Genre-specific improvements confirmed
+
+Audio Quality Results:
+- LUFS Improvement: ____ dB
+- Dynamic Range: ____ (DR meter)
+- Frequency Balance: ____ (correlation)
+- True Peak: ____ dBFS
+- Processing Time: ____ seconds
+
 Issues Found:
 _________________________________
 _________________________________
@@ -393,6 +425,140 @@ _________________________________
 
 ---
 
+## Post-Processing Quality Validation
+
+### Audio Quality Analysis Tools
+```bash
+# Install audio analysis tools if not available
+sudo apt install sox ffmpeg mediainfo  # Linux
+brew install sox ffmpeg mediainfo      # macOS
+
+# Analyze audio files
+ffprobe -v quiet -print_format json -show_format -show_streams input.wav
+ffprobe -v quiet -print_format json -show_format -show_streams output_mastered.wav
+```
+
+### Quality Metrics to Validate
+
+#### 1. LUFS (Loudness Units Full Scale)
+**Expected Results**:
+- **AUTO Mode**: Target -14 LUFS (±1 LUFS tolerance)
+- **REFERENCE Mode**: Should match reference track (±0.5 LUFS)
+- **HYBRID Mode**: Blend of AI target and reference
+
+**Validation Commands**:
+```bash
+# Measure LUFS using ffmpeg
+ffmpeg -i output_mastered.wav -af ebur128=peak=true -f null - 2>&1 | grep -E "(I:|LRA:|Peak:)"
+
+# Compare before/after
+ffmpeg -i original.wav -af ebur128 -f null - 2>&1 | grep "I:"
+ffmpeg -i mastered.wav -af ebur128 -f null - 2>&1 | grep "I:"
+```
+
+#### 2. Dynamic Range
+**Expected Results**:
+- Should preserve or enhance musical dynamics
+- DR meter reading should be ≥6 for most genres
+- No excessive compression artifacts
+
+**Validation**:
+```bash
+# Check peak levels and RMS
+sox original.wav -n stats 2>&1 | grep -E "(Maximum amplitude|RMS)"
+sox mastered.wav -n stats 2>&1 | grep -E "(Maximum amplitude|RMS)"
+```
+
+#### 3. Frequency Response
+**Expected Results**:
+- Balanced frequency spectrum
+- No excessive boost/cut in any frequency range
+- Enhanced clarity without harshness
+
+**Validation**:
+```bash
+# Generate spectrograms for visual comparison
+sox original.wav -n spectrogram -o original_spectrum.png
+sox mastered.wav -n spectrogram -o mastered_spectrum.png
+```
+
+#### 4. True Peak Analysis
+**Expected Results**:
+- True peak ≤ -1 dBFS (streaming standards)
+- No digital clipping
+- Clean transients
+
+### A/B Testing Protocol
+
+#### Manual A/B Test
+1. **Load both files** in MasteringComparison component
+2. **Level-match** playback (use gain compensation)
+3. **Switch between** original and mastered at same position
+4. **Listen for**:
+   - Clarity improvements
+   - Bass definition
+   - Stereo width changes
+   - Overall balance
+
+#### Automated Quality Checks
+```python
+# Python script for automated validation (to be run after processing)
+import numpy as np
+import soundfile as sf
+from scipy import signal
+
+def validate_mastering(original_path, mastered_path):
+    # Load audio files
+    orig_data, orig_sr = sf.read(original_path)
+    mast_data, mast_sr = sf.read(mastered_path)
+    
+    # Check file integrity
+    assert mast_sr == orig_sr, "Sample rate mismatch"
+    assert len(mast_data) == len(orig_data), "Length mismatch"
+    
+    # Check for clipping
+    peak = np.max(np.abs(mast_data))
+    assert peak <= 1.0, f"Clipping detected: peak = {peak}"
+    
+    # Check for silence or corruption
+    rms = np.sqrt(np.mean(mast_data**2))
+    assert rms > 0.001, "Output too quiet or corrupted"
+    
+    # Frequency response check
+    f_orig, psd_orig = signal.welch(orig_data, orig_sr)
+    f_mast, psd_mast = signal.welch(mast_data, mast_sr)
+    
+    return {
+        "peak": peak,
+        "rms": rms,
+        "frequency_balance": np.corrcoef(psd_orig, psd_mast)[0,1]
+    }
+```
+
+### Genre-Specific Validation
+
+#### Hip-Hop/Rap
+- Bass response: Enhanced 60-120 Hz
+- Vocal clarity: Improved 2-5 kHz presence
+- Punchy drums: Transient preservation
+
+#### Rock/Metal
+- Guitar definition: Clear 1-4 kHz
+- Drum impact: Strong attack preservation
+- Overall power: Increased RMS without squashing
+
+#### Electronic/EDM
+- Sub-bass extension: Clean 20-60 Hz
+- High-frequency sparkle: Enhanced 10-20 kHz
+- Dynamic pumping: Controlled and musical
+
+#### Classical/Jazz
+- Natural dynamics: Minimal compression
+- Spatial preservation: Stereo image intact
+- Tonal balance: Natural instrument timbre
+
+---
+
 ## Success Metrics
 
 ### Technical Metrics
@@ -400,12 +566,18 @@ _________________________________
 - **Progress Update Accuracy**: All 7 stages display correctly
 - **Quality Improvement**: Measurable LUFS/dynamics enhancement
 - **Performance**: Processing within expected duration limits
+- **Audio Integrity**: No clipping, proper length, correct sample rate
+- **Frequency Balance**: Correlation >0.8 with original spectrum
+- **LUFS Accuracy**: Within ±1 dB of target levels
+- **True Peak Compliance**: ≤ -1 dBFS for all outputs
 
 ### User Experience Metrics
 - **Upload Success**: 100% for valid files
 - **UI Responsiveness**: <300ms for all interactions
 - **Error Recovery**: Graceful handling of failures
 - **Documentation**: Clear error messages and guidance
+- **A/B Comparison**: Smooth switching without glitches
+- **Download Quality**: Bit-perfect file delivery
 
 ---
 
