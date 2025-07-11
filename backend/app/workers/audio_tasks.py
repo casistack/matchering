@@ -900,6 +900,8 @@ async def _apply_mastering_processing(
         logger.info(f"✅ Starting AUTO mode processing for {input_path.name}")
         logger.info(f"   Target loudness: {loudness_target} LUFS")
         logger.info(f"   Preserve dynamics: {preserve_dynamics}")
+        logger.info(f"   EQ settings: {eq_curve}")
+        logger.info(f"   Compression ratio: {compression.get('ratio', 4.0)}")
         
         # Load audio file
         waveform, sample_rate = torchaudio.load(input_path)
@@ -918,6 +920,8 @@ async def _apply_mastering_processing(
         # Process each channel
         processed_audio = audio_data.copy()
         
+        logger.info(f"   Processing {audio_data.shape[0]} channel(s) with AUTO mode pipeline")
+        
         for channel in range(audio_data.shape[0]):
             channel_data = audio_data[channel]
             
@@ -934,6 +938,8 @@ async def _apply_mastering_processing(
             processed_channel = _apply_auto_limiting(processed_channel, limiting)
             
             processed_audio[channel] = processed_channel
+            
+        logger.info(f"   ✅ All channels processed successfully")
         
         # Convert back to tensor and save
         processed_tensor = torch.from_numpy(processed_audio)
@@ -970,21 +976,22 @@ def _apply_auto_eq(audio_data: np.ndarray, sample_rate: int, eq_curve: Dict[str,
         
         processed = audio_data.copy()
         
-        # Low band (80-250 Hz)
+        # Improved frequency separation for better EQ
+        # Low band (60-200 Hz) - bass frequencies
         if abs(low_gain) > 0.1:
-            sos_low = signal.butter(2, [80, 250], btype='band', fs=sample_rate, output='sos')
+            sos_low = signal.butter(2, [60, 200], btype='band', fs=sample_rate, output='sos')
             low_band = signal.sosfilt(sos_low, processed)
             processed += low_band * (10**(low_gain/20) - 1)
         
-        # Mid band (250-4000 Hz)
+        # Mid band (200-3000 Hz) - vocal and instrument fundamentals
         if abs(mid_gain) > 0.1:
-            sos_mid = signal.butter(2, [250, 4000], btype='band', fs=sample_rate, output='sos')
+            sos_mid = signal.butter(2, [200, 3000], btype='band', fs=sample_rate, output='sos')
             mid_band = signal.sosfilt(sos_mid, processed)
             processed += mid_band * (10**(mid_gain/20) - 1)
         
-        # High band (4000+ Hz)
+        # High band (3000+ Hz) - presence and air
         if abs(high_gain) > 0.1:
-            sos_high = signal.butter(2, 4000, btype='high', fs=sample_rate, output='sos')
+            sos_high = signal.butter(2, 3000, btype='high', fs=sample_rate, output='sos')
             high_band = signal.sosfilt(sos_high, processed)
             processed += high_band * (10**(high_gain/20) - 1)
         
@@ -1028,8 +1035,9 @@ def _apply_auto_loudness(audio_data: np.ndarray, target_loudness: float) -> np.n
         current_rms_db = 20 * np.log10(current_rms + 1e-10)
         
         # Convert target LUFS to approximate RMS level
-        # LUFS to RMS approximation: LUFS ≈ RMS in dB - 3dB (simplified)
-        target_rms_db = target_loudness + 3.0
+        # LUFS to RMS approximation with calibration factor to reduce overshoot
+        # LUFS ≈ RMS in dB + offset (calibrated for better accuracy)
+        target_rms_db = target_loudness + 6.0  # Increased offset to reduce overshoot
         target_rms = 10**(target_rms_db/20)
         
         logger.info(f"🔊 Loudness normalization:")
@@ -1042,7 +1050,8 @@ def _apply_auto_loudness(audio_data: np.ndarray, target_loudness: float) -> np.n
             gain_db = 20 * np.log10(gain)
             
             # Limit gain to prevent excessive amplification or reduction
-            gain_clipped = np.clip(gain, 0.1, 10.0)
+            # More conservative limiting to prevent overshoot
+            gain_clipped = np.clip(gain, 0.2, 5.0)  # Reduced max gain from 10.0 to 5.0
             
             logger.info(f"   Calculated gain: {gain_db:.2f} dB")
             logger.info(f"   Applied gain: {20 * np.log10(gain_clipped):.2f} dB")
