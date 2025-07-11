@@ -36,3 +36,4 @@ backend/model_cache/*
 sharedlogs.txt
 backend/logs/*
 model_cache/*
+scratch_tests/*

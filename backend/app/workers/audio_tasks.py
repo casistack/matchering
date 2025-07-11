@@ -83,7 +83,7 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
         
         # Stage 1: Validation
         await _update_progress(session, job_id, ProcessingStage.VALIDATION, 10.0, "Validating input file")
-        input_file = await _validate_input_file(session, job_id)
+        input_file, user_settings = await _validate_input_file(session, job_id)
         await asyncio.sleep(0.3)  # Allow WebSocket message to be sent
         
         # Stage 2: Feature Extraction  
@@ -98,7 +98,7 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
         
         # Stage 4: Parameter Prediction
         await _update_progress(session, job_id, ProcessingStage.PARAMETER_PREDICTION, 70.0, "Predicting optimal parameters")
-        parameters = await _predict_mastering_parameters(session, analysis)
+        parameters = await _predict_mastering_parameters(session, analysis, user_settings)
         await asyncio.sleep(0.3)
         
         # Stage 5: Audio Processing
@@ -331,7 +331,7 @@ async def _update_progress(
         logger.warning(f"Failed to send Redis progress update for job {job_id}: {e}")
 
 
-async def _validate_input_file(session: AsyncSession, job_id: str) -> AudioFile:
+async def _validate_input_file(session: AsyncSession, job_id: str) -> tuple[AudioFile, Dict[str, Any]]:
     """Validate input file for processing."""
     from sqlalchemy import select
     
@@ -358,7 +358,9 @@ async def _validate_input_file(session: AsyncSession, job_id: str) -> AudioFile:
     if not audio_file.processing_eligible:
         raise AudioFileError(f"File not eligible for processing: {file_path}", "FILE_NOT_ELIGIBLE", {"file_path": str(file_path)})
     
-    return audio_file
+    # Return both audio file and user settings from the job
+    user_settings = job.settings or {}
+    return audio_file, user_settings
 
 
 async def _validate_reference_files(session: AsyncSession, job_id: str) -> tuple[AudioFile, AudioFile]:
@@ -377,7 +379,7 @@ async def _validate_reference_files(session: AsyncSession, job_id: str) -> tuple
         raise ProcessingError(f"No reference file specified for job {job_id}", "NO_REFERENCE_FILE", {"job_id": job_id})
     
     # Validate input file
-    input_file = await _validate_input_file(session, job_id)
+    input_file, _ = await _validate_input_file(session, job_id)  # Ignore user settings for reference mode
     
     # Validate reference file
     query = select(AudioFile).where(AudioFile.id == job.reference_file_id)
@@ -638,6 +640,12 @@ def _get_auto_processing_params(genre: str, features: Dict[str, Any]) -> Dict[st
             "loudness_target": -12.0,
             "dynamic_range_target": 6.0,
             "spectral_balance": "smooth"
+        },
+        # Aliases for genres that may have different naming
+        "hiphop": {
+            "loudness_target": -9.0,
+            "dynamic_range_target": 4.0,
+            "spectral_balance": "bass_heavy"
         }
     }
     
@@ -835,7 +843,7 @@ def _predict_genre_from_features(features: Dict[str, Any]) -> str:
         return "pop"
 
 
-async def _predict_mastering_parameters(session: AsyncSession, analysis: Dict[str, Any]) -> Dict[str, Any]:
+async def _predict_mastering_parameters(session: AsyncSession, analysis: Dict[str, Any], user_settings: Dict[str, Any] = None) -> Dict[str, Any]:
     """Predict optimal mastering parameters for AUTO mode based on analysis."""
     try:
         # AUTO mode uses direct analysis results to create processing parameters
@@ -849,7 +857,8 @@ async def _predict_mastering_parameters(session: AsyncSession, analysis: Dict[st
         
         logger.info(f"✅ AUTO mode parameters predicted for {genre} - Target: {loudness_target} LUFS")
         
-        return {
+        # Build base parameters from AI predictions
+        predicted_params = {
             "eq_curve": eq_curve,
             "compression": compression,
             "limiting": limiting,
@@ -862,6 +871,26 @@ async def _predict_mastering_parameters(session: AsyncSession, analysis: Dict[st
             "preserve_dynamics": True if dynamic_range_target > 10 else False,
             "analysis_method": "auto_mode_parameter_prediction"
         }
+        
+        # Merge user settings if provided (user settings override AI predictions)
+        if user_settings:
+            logger.info(f"🔧 Merging user settings: {user_settings}")
+            
+            # Map frontend setting names to backend parameter names
+            setting_mapping = {
+                "targetLoudness": "loudness_target",
+                "preserveDynamics": "preserve_dynamics",
+                "eqStyle": "eq_style",
+                "intensity": "intensity"
+            }
+            
+            # Apply user overrides to predicted parameters
+            for frontend_key, backend_key in setting_mapping.items():
+                if frontend_key in user_settings:
+                    predicted_params[backend_key] = user_settings[frontend_key]
+                    logger.info(f"   Override: {backend_key} = {user_settings[frontend_key]}")
+        
+        return predicted_params
         
     except Exception as e:
         logger.error(f"❌ Error in AUTO mode parameter prediction: {str(e)}")
@@ -891,8 +920,6 @@ async def _apply_mastering_processing(
     try:
         import torchaudio
         import torch
-        import numpy as np
-        from scipy import signal
         
         input_path = Path(input_file.file_path)
         output_path = input_path.parent / f"processed_{input_path.stem}_auto{input_path.suffix}"
