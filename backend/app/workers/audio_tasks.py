@@ -897,6 +897,13 @@ async def _apply_mastering_processing(
         input_path = Path(input_file.file_path)
         output_path = input_path.parent / f"processed_{input_path.stem}_auto{input_path.suffix}"
         
+        # Get processing parameters first
+        eq_curve = parameters.get("eq_curve", {"low": 0.0, "mid": 0.0, "high": 0.0})
+        compression = parameters.get("compression", {"ratio": 4.0, "attack": 0.003, "release": 0.1})
+        limiting = parameters.get("limiting", {"ceiling": -0.1, "release": 0.05})
+        loudness_target = parameters.get("loudness_target", -14.0)
+        preserve_dynamics = parameters.get("preserve_dynamics", True)
+        
         logger.info(f"✅ Starting AUTO mode processing for {input_path.name}")
         logger.info(f"   Target loudness: {loudness_target} LUFS")
         logger.info(f"   Preserve dynamics: {preserve_dynamics}")
@@ -909,13 +916,6 @@ async def _apply_mastering_processing(
         
         # Convert to numpy for processing
         audio_data = waveform.numpy()
-        
-        # Get processing parameters
-        eq_curve = parameters.get("eq_curve", {"low": 0.0, "mid": 0.0, "high": 0.0})
-        compression = parameters.get("compression", {"ratio": 4.0, "attack": 0.003, "release": 0.1})
-        limiting = parameters.get("limiting", {"ceiling": -0.1, "release": 0.05})
-        loudness_target = parameters.get("loudness_target", -14.0)
-        preserve_dynamics = parameters.get("preserve_dynamics", True)
         
         # Process each channel
         processed_audio = audio_data.copy()
