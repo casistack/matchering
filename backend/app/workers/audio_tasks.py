@@ -93,7 +93,7 @@ async def _process_audio_auto_master_async(self: AudioProcessingTask, job_id: st
         
         # Stage 3: AI Analysis
         await _update_progress(session, job_id, ProcessingStage.AI_ANALYSIS, 50.0, "Analyzing audio characteristics")
-        analysis = await _analyze_audio_ai(session, features)
+        analysis = await _analyze_audio_ai(session, features, input_file)
         await asyncio.sleep(0.3)
         
         # Stage 4: Parameter Prediction
@@ -455,44 +455,43 @@ async def _extract_audio_features(session: AsyncSession, audio_file: AudioFile) 
         }
 
 
-async def _analyze_audio_ai(session: AsyncSession, features: Dict[str, Any]) -> Dict[str, Any]:
+async def _analyze_audio_ai(session: AsyncSession, features: Dict[str, Any], input_file: AudioFile) -> Dict[str, Any]:
     """Analyze audio for AUTO mode using HYBRID's AI genre classifier."""
     try:
         # AUTO mode now uses HYBRID's sophisticated AI genre classifier
         # but keeps the simple processing pipeline
         
-        # First, try to get the audio file path from the calling context
-        audio_path = None
-        try:
-            import inspect
-            frame = inspect.currentframe()
-            caller_frame = frame.f_back.f_back  # Go up to the main processing function
-            if caller_frame and 'input_file' in caller_frame.f_locals:
-                audio_file = caller_frame.f_locals['input_file']
-                audio_path = audio_file.file_path
-        except:
-            pass
+        # Get audio path directly from input_file parameter
+        audio_path = input_file.file_path
+        logger.info(f"🔍 AUTO mode using audio path: {audio_path}")
         
-        if audio_path:
+        if audio_path and Path(audio_path).exists():
             # Use HYBRID's AI genre classifier
             try:
                 from app.ai.ensemble_genre_classifier import EnsembleGenreClassifier
                 from app.ai.production_model_manager import ProductionModelManager
+                from app.ai.hybrid_feature_extractor import HybridFeatureExtractor
                 
                 # Initialize the AI classifier
                 model_manager = ProductionModelManager()
                 genre_classifier = EnsembleGenreClassifier(model_manager)
+                feature_extractor = HybridFeatureExtractor()
                 
-                # Perform real AI genre classification
-                analysis_result = await genre_classifier.classify_genre(audio_path)
+                # Extract features needed for AI classification
+                hybrid_features = await feature_extractor.extract_features(audio_path)
                 
-                genre = analysis_result.get("predicted_genre", "pop")
-                confidence = analysis_result.get("confidence", 0.8)
+                # Perform real AI genre classification with correct method
+                prediction = await genre_classifier.predict_genre(hybrid_features, Path(audio_path).name)
+                
+                genre = prediction.predicted_genre
+                confidence = prediction.confidence
                 
                 logger.info(f"✅ AUTO mode AI classification - Genre: {genre}, Confidence: {confidence:.2f}")
+                logger.info(f"   Model used: {prediction.model_used}")
                 
             except Exception as ai_error:
                 logger.warning(f"AI classification failed, using feature-based fallback: {str(ai_error)}")
+                logger.warning(f"   Error details: {traceback.format_exc()}")
                 genre, confidence = _fallback_genre_classification(features)
         else:
             # Fallback to feature-based classification
@@ -535,17 +534,26 @@ def _fallback_genre_classification(features: Dict[str, Any]) -> tuple[str, float
     
     dynamic_range = peak_level - rms_level
     
-    # Basic genre classification for AUTO mode
-    if dynamic_range > 15:
-        return "classical", 0.7
-    elif dynamic_range < 5 and spectral_centroid > 3000:
-        return "electronic", 0.6
-    elif spectral_centroid > 3000:
+    # Improved genre classification for AUTO mode
+    # Note: Dynamic range alone is not a reliable indicator of genre
+    if dynamic_range > 20 and spectral_centroid < 2000:
+        # Very high dynamic range with low spectral centroid might be classical
+        return "classical", 0.6
+    elif dynamic_range < 6 and spectral_centroid > 4000:
+        # Heavily compressed with bright timbre - likely electronic
+        return "electronic", 0.7
+    elif spectral_centroid > 4000 and dynamic_range < 10:
+        # Bright and somewhat compressed - likely rock or metal
         return "rock", 0.6
-    elif spectral_centroid < 1500:
-        return "jazz", 0.7
-    else:
+    elif spectral_centroid < 1800 and dynamic_range > 10:
+        # Warm timbre with good dynamics - likely jazz or blues
+        return "jazz", 0.6
+    elif dynamic_range < 8:
+        # Moderately compressed - likely pop
         return "pop", 0.5
+    else:
+        # Default to rock for unknown characteristics
+        return "rock", 0.4
 
 
 def _get_auto_processing_params(genre: str, features: Dict[str, Any]) -> Dict[str, Any]:
@@ -890,9 +898,12 @@ async def _apply_mastering_processing(
         output_path = input_path.parent / f"processed_{input_path.stem}_auto{input_path.suffix}"
         
         logger.info(f"✅ Starting AUTO mode processing for {input_path.name}")
+        logger.info(f"   Target loudness: {loudness_target} LUFS")
+        logger.info(f"   Preserve dynamics: {preserve_dynamics}")
         
         # Load audio file
         waveform, sample_rate = torchaudio.load(input_path)
+        logger.info(f"   Audio loaded: {waveform.shape} @ {sample_rate}Hz")
         
         # Convert to numpy for processing
         audio_data = waveform.numpy()
@@ -1012,18 +1023,47 @@ def _apply_auto_compression(audio_data: np.ndarray, compression: Dict[str, float
 def _apply_auto_loudness(audio_data: np.ndarray, target_loudness: float) -> np.ndarray:
     """Apply loudness normalization for AUTO mode."""
     try:
-        # Simple RMS-based loudness adjustment
+        # Calculate current RMS level
         current_rms = np.sqrt(np.mean(audio_data**2))
-        target_rms = 10**(target_loudness/20) * 0.1  # Rough LUFS to RMS conversion
+        current_rms_db = 20 * np.log10(current_rms + 1e-10)
+        
+        # Convert target LUFS to approximate RMS level
+        # LUFS to RMS approximation: LUFS ≈ RMS in dB - 3dB (simplified)
+        target_rms_db = target_loudness + 3.0
+        target_rms = 10**(target_rms_db/20)
+        
+        logger.info(f"🔊 Loudness normalization:")
+        logger.info(f"   Current RMS: {current_rms_db:.2f} dB")
+        logger.info(f"   Target LUFS: {target_loudness:.1f}")
+        logger.info(f"   Target RMS: {target_rms_db:.2f} dB")
         
         if current_rms > 0:
             gain = target_rms / current_rms
-            # Limit gain to prevent excessive amplification
-            gain = np.clip(gain, 0.1, 10.0)
-            return audio_data * gain
+            gain_db = 20 * np.log10(gain)
+            
+            # Limit gain to prevent excessive amplification or reduction
+            gain_clipped = np.clip(gain, 0.1, 10.0)
+            
+            logger.info(f"   Calculated gain: {gain_db:.2f} dB")
+            logger.info(f"   Applied gain: {20 * np.log10(gain_clipped):.2f} dB")
+            
+            # Apply gain
+            processed = audio_data * gain_clipped
+            
+            # Soft clip to prevent any potential overshoots
+            processed = np.tanh(processed * 0.95) / 0.95
+            
+            # Log final level
+            final_rms = np.sqrt(np.mean(processed**2))
+            final_rms_db = 20 * np.log10(final_rms + 1e-10)
+            logger.info(f"   Final RMS: {final_rms_db:.2f} dB")
+            
+            return processed
         else:
+            logger.warning("⚠️ Current RMS is zero, returning original audio")
             return audio_data
-    except:
+    except Exception as e:
+        logger.error(f"❌ Error in loudness normalization: {str(e)}")
         return audio_data
 
 
